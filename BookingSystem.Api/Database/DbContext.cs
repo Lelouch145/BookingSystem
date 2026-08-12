@@ -3,10 +3,10 @@ using BookingSystem.Api.Models;
 
 namespace BookingSystem.Api.Database;
 
-public class Database : DbContext
+public class AppDbContext : DbContext
 {
 
-    public Database(DbContextOptions<Database> options)
+    public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options)
     {
     }

@@ -10,8 +10,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace BookingSystem.Api.Migrations
 {
-    [DbContext(typeof(Database))]
-    [Migration("20260811182810_InitialCreate")]
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260811214425_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
