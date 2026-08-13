@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using BookingSystem.Api.Models;
+using BookingSystem.Api.Models.SystemModels;
 
 namespace BookingSystem.Api.Database;
 

@@ -1,4 +1,8 @@
 using BookingSystem.Api.Database;
+using BookingSystem.Api.Migrations;
+using BookingSystem.Api.Models;
+using BookingSystem.Api.Models.SystemModels;
+using BookingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +16,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     + "'DefaultConnection' not found.");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
+builder.Services.AddScoped<CourtService>();
 
 var app = builder.Build();
 
@@ -24,29 +29,63 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
+app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string courtName, string description) =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    var result = await court.CreateCourt(courtName, description);
 
-app.MapGet("/weatherforecast", () =>
+    if (result.ErrorMessage == Error.InvalidCourtName)
+    {
+        return Results.BadRequest(result.ErrorMessage);
+    }
+    else if(result.ErrorMessage == Error.CourtAlreadyExists)
+    {
+        return Results.Conflict(result.ErrorMessage);
+    }
+    return Results.Ok(result);
+});
+
+app.MapGet("Courts/ShowCourts", (CourtService showCourt) =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+    return showCourt.ShowCourts();
+});
+
+app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, string courtName) =>
+{
+
+
+    var result = await disableCourt.DisableCourt(courtName);
+
+    if (result.ErrorMessage == Error.CouldNotFindTheCourtInDataBase)
+    {
+        return Results.NotFound(result.ErrorMessage);
+    }
+    else if(result.ErrorMessage == Error.CourtIsAlreadyInActive)
+    {
+        return Results.Conflict(result.ErrorMessage);
+    }
+    return Results.Ok(result);
+});
+
+app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string courtName, string description, bool IsActive, string findCourt) =>
+{
+
+
+    var result = await courtUpdate.UpdateCourt(findCourt, courtName, description, IsActive);
+    if (result.ErrorMessage == Error.InvalidCourtName)
+    {
+        return Results.BadRequest(result.ErrorMessage);
+    }
+    else if (result.ErrorMessage == Error.CouldNotFindTheCourtInDataBase)
+    {
+        return Results.NotFound(result.ErrorMessage);
+    }
+    else if(result.ErrorMessage == Error.CourtAlreadyExists)
+    {
+        return Results.Conflict(result.ErrorMessage);
+    }
+    return Results.Ok();
+});
+
+
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
