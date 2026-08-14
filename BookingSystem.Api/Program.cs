@@ -8,13 +8,43 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Expressions;
 using BookingSystem.Api.Models.ResponseModel;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header
+
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+});
+});
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string"
     + "'DefaultConnection' not found.");
@@ -29,9 +59,45 @@ builder.Services.Configure<IdentityOptions>(options =>
 });
 builder.Services.AddScoped<CourtService>();
 builder.Services.AddScoped<RegisterService>();
+builder.Services.AddScoped<LoginService>();
+builder.Services.AddScoped<JWTService>();
+
+var jwtKey = builder.Configuration["JWT:KEY"]
+    ?? throw new InvalidOperationException("JWT key is missing");
+
+var issuer = builder.Configuration["JWT:Issuer"]
+    ?? throw new InvalidOperationException("JWT issuer is missing");
+
+var audience = builder.Configuration["JWT:Audience"]
+    ?? throw new InvalidOperationException("JWT audience is missing");
+
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+
+            IssuerSigningKey =
+            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+app.UseAuthentication();
+app.UseAuthorization();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -49,7 +115,7 @@ app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string 
     {
         return Results.BadRequest(result.ErrorMessage);
     }
-    else if(result.ErrorMessage == Error.CourtAlreadyExists)
+    else if (result.ErrorMessage == Error.CourtAlreadyExists)
     {
         return Results.Conflict(result.ErrorMessage);
     }
@@ -60,6 +126,13 @@ app.MapGet("Courts/ShowCourts", (CourtService showCourt) =>
 {
     return showCourt.ShowCourts();
 });
+
+app.MapGet("/test-auth", () =>
+{
+    return Results.Ok("Du är authat");
+})
+.RequireAuthorization();
+
 
 app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, string courtName) =>
 {
@@ -102,6 +175,20 @@ app.MapPost("Register", async (RegisterService services, RegisterRequest request
 {
 
     var result = await services.Register(request.Email, request.UserName, request.Password);
+
+    if (result.Success)
+    {
+        return Results.Ok(result);
+    }
+    else
+    {
+        return Results.BadRequest(result);
+    }
+});
+
+app.MapPost("Login", async (LoginService services, LoginRequest request) =>
+{
+    var result = await services.LoginAuthentication(request.Email, request.Password);
 
     if (result.Success)
     {

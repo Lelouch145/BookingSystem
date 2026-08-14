@@ -12,5 +12,5 @@ public enum Error
     CouldNotFins,
     MailCannotBeEmpty,
     UserNameCannotBeEmpty,
-    PasswordCannotBeEmpty
+    InvalidCredentials
 }

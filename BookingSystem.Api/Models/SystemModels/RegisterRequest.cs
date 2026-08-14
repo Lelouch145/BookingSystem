@@ -1,4 +1,4 @@
-namespace BookingSystem.Api.Models.ResponseModel;
+namespace BookingSystem.Api.Models.SystemModels;
 
 public class RegisterRequest
 {
