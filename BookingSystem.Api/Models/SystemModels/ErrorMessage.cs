@@ -9,5 +9,8 @@ public enum Error
     CourtAlreadyExists,
     CourtIsAlreadyInActive,
     InvalidCourtSearchName,
-    CouldNotFins
+    CouldNotFins,
+    MailCannotBeEmpty,
+    UserNameCannotBeEmpty,
+    PasswordCannotBeEmpty
 }

@@ -4,6 +4,10 @@ using BookingSystem.Api.Models;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Expressions;
+using BookingSystem.Api.Models.ResponseModel;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,7 +20,15 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     + "'DefaultConnection' not found.");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+.AddEntityFrameworkStores<AppDbContext>();
+
+builder.Services.Configure<IdentityOptions>(options =>
+{
+    options.User.RequireUniqueEmail = true;
+});
 builder.Services.AddScoped<CourtService>();
+builder.Services.AddScoped<RegisterService>();
 
 var app = builder.Build();
 
@@ -79,11 +91,26 @@ app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string 
     {
         return Results.NotFound(result.ErrorMessage);
     }
-    else if(result.ErrorMessage == Error.CourtAlreadyExists)
+    else if (result.ErrorMessage == Error.CourtAlreadyExists)
     {
         return Results.Conflict(result.ErrorMessage);
     }
     return Results.Ok();
+});
+
+app.MapPost("Register", async (RegisterService services, RegisterRequest request) =>
+{
+
+    var result = await services.Register(request.Email, request.UserName, request.Password);
+
+    if (result.Success)
+    {
+        return Results.Ok(result);
+    }
+    else
+    {
+        return Results.BadRequest(result);
+    }
 });
 
 
