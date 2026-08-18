@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using System.Runtime.InteropServices.Marshalling;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -61,6 +62,7 @@ builder.Services.AddScoped<CourtService>();
 builder.Services.AddScoped<RegisterService>();
 builder.Services.AddScoped<LoginService>();
 builder.Services.AddScoped<JWTService>();
+builder.Services.AddScoped<SeedService>();
 
 var jwtKey = builder.Configuration["JWT:KEY"]
     ?? throw new InvalidOperationException("JWT key is missing");
@@ -92,9 +94,20 @@ builder.Services.AddAuthentication(options =>
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Admin", policy =>
+        policy.RequireRole("Admin"));
+});
 
 var app = builder.Build();
+
+await using var scope = app.Services.CreateAsyncScope();
+
+    var seedService = scope.ServiceProvider
+        .GetRequiredService<SeedService>();
+
+    await seedService.SeedRoleAsync();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -120,7 +133,7 @@ app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string 
         return Results.Conflict(result.ErrorMessage);
     }
     return Results.Ok(result);
-});
+}).RequireAuthorization("Admin");
 
 app.MapGet("Courts/ShowCourts", (CourtService showCourt) =>
 {
@@ -149,7 +162,7 @@ app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, str
         return Results.Conflict(result.ErrorMessage);
     }
     return Results.Ok(result);
-});
+}).RequireAuthorization("Admin");
 
 app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string courtName, string description, bool IsActive, string findCourt) =>
 {
@@ -169,7 +182,7 @@ app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string 
         return Results.Conflict(result.ErrorMessage);
     }
     return Results.Ok();
-});
+}).RequireAuthorization("Admin");
 
 app.MapPost("Register", async (RegisterService services, RegisterRequest request) =>
 {
