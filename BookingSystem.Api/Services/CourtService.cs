@@ -52,6 +52,8 @@ public class CourtService
             ErrorMessage = Error.none
         };
 
+        
+
         return courtResult;
 
     }
@@ -59,6 +61,14 @@ public class CourtService
     public async Task<IEnumerable<Court>> ShowCourts()
     {
         return await _dbContext.Courts.ToListAsync();
+    }
+
+    public async Task<IEnumerable<Court>> ShowActiveCourts()
+    {
+        var activeCourts = await _dbContext.Courts.Where(x => x.IsActive).ToListAsync();
+
+        return activeCourts;
+
     }
 
     public async Task<CourtResult> DisableCourt(string courtName)

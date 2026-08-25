@@ -13,5 +13,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         
     }
     public DbSet<Court> Courts { get; set; }
+    public DbSet<Booking> Bookings { get; set; }
 
 }

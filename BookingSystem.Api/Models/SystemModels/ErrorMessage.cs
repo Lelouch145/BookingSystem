@@ -12,5 +12,17 @@ public enum Error
     CouldNotFins,
     MailCannotBeEmpty,
     UserNameCannotBeEmpty,
-    InvalidCredentials
+    InvalidCredentials,
+    CourtIsNotAvailable,
+    BookingTimeIsOverlappingWithAnotherBooking,
+    BookingCannotBeInThePast,
+    InvalidDuration,
+    BookingTimeIsNotAvailable,
+    BookingNotFound,
+    BookingIsAlreadyCancelled,
+    CannotCancelBooking24HoursBeforeTheBooking,
+    BookingIsCompletedAndCannotBeCancelled,
+    BookingIsCancelledAndCannotBeChanged,
+    BookingIsCompletedAndCannotBeChanged,
+    UserDoesNotOwnBooking
 }
