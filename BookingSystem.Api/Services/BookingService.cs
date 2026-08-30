@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualBasic;
 using Microsoft.AspNetCore.Identity;
 using System.ComponentModel;
+using Microsoft.Data.SqlClient;
+using System.Data;
 
 namespace BookingSystem.Api.Services;
 
@@ -22,22 +24,7 @@ public class BookingService
 
     public async Task<BookingResult> CreateBooking(int courtId, DateTime startTime, int duration, string userId)
     {
-        var findCourt = await _dbContext.Courts.FirstOrDefaultAsync(x => x.Id == courtId);
 
-        if (findCourt == null)
-        {
-            return new BookingResult
-            {
-                ErrorMessage = Error.CouldNotFindTheCourtInDataBase
-            };
-        }
-        if (!findCourt.IsActive)
-        {
-            return new BookingResult
-            {
-                ErrorMessage = Error.CourtIsNotAvailable
-            };
-        }
         var checkAvailability = AvailabilityCheck(startTime, duration);
         if (checkAvailability.ErrorMessage == Error.InvalidDuration ||
             checkAvailability.ErrorMessage == Error.BookingCannotBeInThePast)
@@ -55,6 +42,30 @@ public class BookingService
                 ErrorMessage = Error.BookingTimeIsNotAvailable
             };
         }
+        var endTime = startTime.AddMinutes(duration);
+        List<BookingSlot> bookingSlots = new List<BookingSlot>();
+        var slotCount = duration / 30;
+
+        await using var transaction = await _dbContext.Database.
+            BeginTransactionAsync();
+            
+        var findCourt = await _dbContext.Courts.FirstOrDefaultAsync(x => x.Id == courtId);
+
+        if (findCourt == null)
+        {
+            return new BookingResult
+            {
+                ErrorMessage = Error.CouldNotFindTheCourtInDataBase
+            };
+        }
+        if (!findCourt.IsActive)
+        {
+            return new BookingResult
+            {
+                ErrorMessage = Error.CourtIsNotAvailable
+            };
+        }
+
         var checkOverLap = CheckOverLap(startTime, duration, courtId, null);
 
         if (checkOverLap == true)
@@ -64,7 +75,17 @@ public class BookingService
                 ErrorMessage = Error.BookingTimeIsOverlappingWithAnotherBooking
             };
         }
-        var endTime = startTime.AddMinutes(duration);
+
+        for(int i = 0; i < slotCount; i++)
+        {
+            var slotStartTime = startTime.AddMinutes(i * 30);
+            BookingSlot bookingSlot = new BookingSlot
+            {
+                CourtId = findCourt.Id,
+                SlotStart = slotStartTime
+            };
+            bookingSlots.Add(bookingSlot);
+        }
         Booking booking = new Booking
         {
             CourtId = findCourt.Id,
@@ -72,11 +93,31 @@ public class BookingService
             UserId = userId,
             EndTime = endTime,
             Status = BookingStatus.Confirmed,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            BookingSlots = bookingSlots
 
         };
         _dbContext.Bookings.Add(booking);
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+        }
+        catch(DbUpdateException ex)
+        {
+            await transaction.RollbackAsync();
+            if (ex.InnerException is SqlException sqlException && (sqlException.Number == 2601 || sqlException.Number == 2627))
+            {
+                return new BookingResult
+                {
+                    ErrorMessage = Error.BookingTimeIsOverlappingWithAnotherBooking
+                };
+            }
+
+            throw;
+        }
+
         BookingClient bookingClient = new BookingClient
         {
             Id = booking.Id,
@@ -222,7 +263,17 @@ public class BookingService
             };
         }
         findBooking.Status = BookingStatus.Cancelled;
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch(DbUpdateConcurrencyException)
+        {
+            return new CancelBookingOrUpdate
+            {
+                ErrorMessage = Error.BookingWasModifiedByAnotherRequest
+            };
+        }
 
         return new CancelBookingOrUpdate
         {
@@ -333,8 +384,17 @@ public class BookingService
 
         findBooking.StartTime = newStartTime;
         findBooking.EndTime = endTime;
-
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch(DbUpdateConcurrencyException)
+        {
+            return new CancelBookingOrUpdate
+            {
+                ErrorMessage = Error.BookingWasModifiedByAnotherRequest
+            };
+        }
 
         return new CancelBookingOrUpdate
         {

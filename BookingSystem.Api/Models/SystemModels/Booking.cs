@@ -1,3 +1,5 @@
+using System.Data;
+
 namespace BookingSystem.Api.Models.SystemModels;
 
 public class Booking
@@ -15,4 +17,6 @@ public class Booking
 
     public BookingStatus Status { get; set; } = BookingStatus.Confirmed;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public ICollection<BookingSlot> BookingSlots { get; set; } = new List<BookingSlot>();
+    public byte[] RowVersion { get; set; } = null!;
 }

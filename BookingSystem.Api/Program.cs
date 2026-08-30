@@ -333,6 +333,10 @@ app.MapPatch("Booking/Cancel", async (ClaimsPrincipal user, BookingService booki
     {
         return Results.BadRequest(resultUser.ErrorMessage);
     }
+    else if(resultUser.ErrorMessage == Error.BookingWasModifiedByAnotherRequest)
+    {
+        return Results.Conflict(resultUser);
+    }
     return Results.Ok(resultUser);
 });
 
@@ -377,9 +381,13 @@ app.MapPatch("Booking/UpdateTime", async (ClaimsPrincipal user, BookingService b
     {
         return Results.Forbid();
     }
-    else if(result.ErrorMessage == Error.BookingCannotBeInThePast)
+    else if (result.ErrorMessage == Error.BookingCannotBeInThePast)
     {
         return Results.BadRequest(result.ErrorMessage);
+    }
+    else if(result.ErrorMessage == Error.BookingWasModifiedByAnotherRequest)
+    {
+        return Results.Conflict(result.ErrorMessage);
     }
     return Results.Ok(result);
 }).RequireAuthorization();

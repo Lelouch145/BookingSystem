@@ -24,5 +24,6 @@ public enum Error
     BookingIsCompletedAndCannotBeCancelled,
     BookingIsCancelledAndCannotBeChanged,
     BookingIsCompletedAndCannotBeChanged,
-    UserDoesNotOwnBooking
+    UserDoesNotOwnBooking,
+    BookingWasModifiedByAnotherRequest
 }
