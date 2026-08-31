@@ -46,9 +46,9 @@ public class BookingConcurrencyTests
         await dbContext.SaveChangesAsync();
         BookingService bookingService = new BookingService(dbContext);
         BookingService secondBookingService = new BookingService(secondDbContext);
-
-        var CreateBooking = bookingService.CreateBooking(newCourt.Id, new DateTime(2026, 8, 29, 18, 30, 0), 60, testUser.Id);
-        var secondCreateBooking = secondBookingService.CreateBooking(newCourt.Id, new DateTime(2026, 8, 29, 18, 30, 0), 60, testUser2.Id);
+        var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
+        var CreateBooking = bookingService.CreateBooking(newCourt.Id, startTime, 60, testUser.Id);
+        var secondCreateBooking = secondBookingService.CreateBooking(newCourt.Id, startTime, 60, testUser2.Id);
 
         var results = await Task.WhenAll(CreateBooking, secondCreateBooking);
 
