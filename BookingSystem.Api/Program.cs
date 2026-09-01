@@ -65,7 +65,8 @@ builder.Services.AddScoped<LoginService>();
 builder.Services.AddScoped<JWTService>();
 builder.Services.AddScoped<SeedService>();
 builder.Services.AddScoped<BookingService>();
-builder.Services.AddHostedService<BackGroundTaskForComplete>();
+builder.Services.AddScoped<BookingCompletionService>();
+builder.Services.AddHostedService<BookingCompletionBackgroundService>();
 var jwtKey = builder.Configuration["JWT:KEY"]
     ?? throw new InvalidOperationException("JWT key is missing");
 

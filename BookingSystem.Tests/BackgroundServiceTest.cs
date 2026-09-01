@@ -17,14 +17,6 @@ public class BackGroundTest
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
         var dbContext = new AppDbContext(options);
 
-        var services = new ServiceCollection();
-        services.AddDbContext<AppDbContext>(options =>
-        {
-            options.UseSqlServer(connectionString);
-        });
-
-        var serviceProvider = services.BuildServiceProvider();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
         ApplicationUser newUser = new ApplicationUser
         {
@@ -56,23 +48,8 @@ public class BackGroundTest
         dbContext.ChangeTracker.Clear();
 
 
-        var BackgroundService = new BackGroundTaskForComplete(scopeFactory);
-        await BackgroundService.StartAsync(CancellationToken.None);
-        var timeout = DateTime.UtcNow.AddSeconds(3);
-
-        while (DateTime.UtcNow < timeout)
-        {
-            var booking = await dbContext.Bookings.FirstAsync(x => x.Id == newBooking.Id);
-
-            if (booking.Status == BookingStatus.Completed)
-            {
-                break;
-            }
-
-            await Task.Delay(50);
-        }
-        dbContext.ChangeTracker.Clear();
-        await BackgroundService.StopAsync(CancellationToken.None);
+        var BackgroundService = new BookingCompletionService(dbContext);
+        await BackgroundService.CompleteExpiresBookingAsync(CancellationToken.None);
 
         var updateBooking = await dbContext.Bookings.FirstAsync(x => x.Id == newBooking.Id);
 
