@@ -23,7 +23,11 @@ public class BookingConcurrencyTests
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
         var dbContext = new AppDbContext(options);
         var secondDbContext = new AppDbContext(options);
+
         await dbContext.Database.MigrateAsync();
+
+        BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
+        BookingTimeService bookingTimeServiceSecond = new BookingTimeService(secondDbContext);
 
         Court newCourt = new Court
         {
@@ -44,11 +48,11 @@ public class BookingConcurrencyTests
         };
         dbContext.Users.AddRange(testUser, testUser2);
         await dbContext.SaveChangesAsync();
-        BookingService bookingService = new BookingService(dbContext);
-        BookingService secondBookingService = new BookingService(secondDbContext);
+        BookingService bookingService = new BookingService(dbContext, bookingTimeService);
+        BookingService secondBookingService = new BookingService(secondDbContext, bookingTimeServiceSecond);
         var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
-        var CreateBooking = bookingService.CreateBooking(newCourt.Id, startTime, 60, testUser.Id);
-        var secondCreateBooking = secondBookingService.CreateBooking(newCourt.Id, startTime, 60, testUser2.Id);
+        var CreateBooking = bookingService.CreateBooking(newCourt.Id, startTime, 60, testUser.Id, CancellationToken.None);
+        var secondCreateBooking = secondBookingService.CreateBooking(newCourt.Id, startTime, 60, testUser2.Id, CancellationToken.None);
 
         var results = await Task.WhenAll(CreateBooking, secondCreateBooking);
 
@@ -121,6 +125,8 @@ public class BookingConcurrencyTests
         var secondDbContext = new AppDbContext(options);
         await dbContext.Database.MigrateAsync();
 
+        BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
+
         Court newCourt = new Court
         {
             CourtName = "Test",
@@ -147,11 +153,11 @@ public class BookingConcurrencyTests
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext);
-        var secondService = new BookingService(secondDbContext);
+        var service = new BookingService(dbContext, bookingTimeService);
+        var secondService = new BookingService(secondDbContext, bookingTimeService);
         var bookingB = await secondDbContext.Bookings.FirstAsync(x => x.Id == newBooking.Id);
-        var firstTask = service.CancelUserBooking(newUser.Id, newBooking.Id);
-        var secondTask = secondService.CancelUserBooking(newUser.Id, newBooking.Id);
+        var firstTask = service.CancelBooking(newUser.Id, newBooking.Id, CancellationToken.None, false);
+        var secondTask = secondService.CancelBooking(newUser.Id, newBooking.Id, CancellationToken.None, false);
 
         var result = await Task.WhenAll(firstTask, secondTask);
         var successResult = result.FirstOrDefault(x => x.Success);
@@ -176,6 +182,9 @@ public class BookingConcurrencyTests
         var secondDbContext = new AppDbContext(options);
         await dbContext.Database.MigrateAsync();
 
+        BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
+        BookingTimeService bookingTimeServiceSecond = new BookingTimeService(secondDbContext);
+
         Court newCourt = new Court
         {
             CourtName = "Test",
@@ -202,14 +211,14 @@ public class BookingConcurrencyTests
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext);
-        var secondService = new BookingService(secondDbContext);
+        var service = new BookingService(dbContext, bookingTimeService);
+        var secondService = new BookingService(secondDbContext, bookingTimeServiceSecond);
         var newStartTime = DateTime.Now.Date.AddDays(3).AddHours(15).AddMinutes(30);
 
         var bookingB = await secondDbContext.Bookings.FirstAsync(x => x.Id == newBooking.Id);
 
-        var firstTask = service.RescheduleBooking(newUser.Id, newBooking.Id, 60, newStartTime, false);
-        var secondTask = secondService.RescheduleBooking(newUser.Id, newBooking.Id, 90, newStartTime, false);
+        var firstTask = service.RescheduleBooking(newUser.Id, newBooking.Id, 60, newStartTime, false, CancellationToken.None);
+        var secondTask = secondService.RescheduleBooking(newUser.Id, newBooking.Id, 90, newStartTime, false, CancellationToken.None);
 
         var result = await Task.WhenAll(firstTask, secondTask);
 

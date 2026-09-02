@@ -67,6 +67,7 @@ builder.Services.AddScoped<SeedService>();
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<BookingCompletionService>();
 builder.Services.AddHostedService<BookingCompletionBackgroundService>();
+builder.Services.AddScoped<BookingTimeService>();
 var jwtKey = builder.Configuration["JWT:KEY"]
     ?? throw new InvalidOperationException("JWT key is missing");
 
@@ -227,7 +228,7 @@ app.MapPost("Login", async (LoginService services, LoginRequest request) =>
     }
 });
 
-app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int courtId, DateTime startTime, int duration, ClaimsPrincipal user) =>
+app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int courtId, DateTime startTime, int duration, ClaimsPrincipal user, CancellationToken cancellationToken) =>
 {
 
     var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
@@ -238,7 +239,7 @@ app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int
     }
     string userId = userIdClaim.Value;
 
-    var result = await booking.CreateBooking(courtId, startTime, duration, userId);
+    var result = await booking.CreateBooking(courtId, startTime, duration, userId, cancellationToken);
 
     if (result.ErrorMessage == Error.CouldNotFindTheCourtInDataBase)
     {
@@ -266,13 +267,13 @@ app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int
 
 }).RequireAuthorization();
 
-app.MapGet("Booking", async (ClaimsPrincipal user, BookingService booking) =>
+app.MapGet("Booking", async (ClaimsPrincipal user, BookingService booking, CancellationToken cancellationToken) =>
 {
     var isAdmin = user.IsInRole("Admin");
 
     if (isAdmin)
     {
-        var result = await booking.GetAllBookings();
+        var result = await booking.GetAllBookings(cancellationToken);
         return Results.Ok(result);
     }
     var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
@@ -283,31 +284,13 @@ app.MapGet("Booking", async (ClaimsPrincipal user, BookingService booking) =>
     }
     var userId = userIdClaim.Value;
 
-    var resultUser = await booking.GetUserBookings(userId);
+    var resultUser = await booking.GetUserBookings(userId, cancellationToken);
     return Results.Ok(resultUser);
 }).RequireAuthorization();
 
-app.MapPatch("Booking/Cancel", async (ClaimsPrincipal user, BookingService booking, int bookingId) =>
+app.MapPatch("Booking/Cancel", async (ClaimsPrincipal user, BookingService booking, int bookingId, CancellationToken cancellationToken) =>
 {
-    var isAdmin = user.IsInRole("Admin");
 
-    if (isAdmin)
-    {
-        var result = await booking.CancelAdminBooking(bookingId);
-        if (result.ErrorMessage == Error.BookingNotFound)
-        {
-            return Results.NotFound(result.ErrorMessage);
-        }
-        else if (result.ErrorMessage == Error.BookingIsAlreadyCancelled)
-        {
-            return Results.BadRequest(result.ErrorMessage);
-        }
-        else if (result.ErrorMessage == Error.BookingIsCompletedAndCannotBeCancelled)
-        {
-            return Results.BadRequest(result.ErrorMessage);
-        }
-        return Results.Ok(result);
-    }
     var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
 
     if (userIdClaim == null)
@@ -315,8 +298,9 @@ app.MapPatch("Booking/Cancel", async (ClaimsPrincipal user, BookingService booki
         return Results.Unauthorized();
     }
     var userId = userIdClaim.Value;
+    var isAdmin = user.IsInRole("Admin");
 
-    var resultUser = await booking.CancelUserBooking(userId, bookingId);
+    var resultUser = await booking.CancelBooking(userId, bookingId, cancellationToken, isAdmin);
 
     if (resultUser.ErrorMessage == Error.BookingNotFound)
     {
@@ -341,7 +325,7 @@ app.MapPatch("Booking/Cancel", async (ClaimsPrincipal user, BookingService booki
     return Results.Ok(resultUser);
 });
 
-app.MapPatch("Booking/UpdateTime", async (ClaimsPrincipal user, BookingService booking, int bookingId, int duration, DateTime newStartTime) =>
+app.MapPatch("Booking/UpdateTime", async (ClaimsPrincipal user, BookingService booking, int bookingId, int duration, DateTime newStartTime, CancellationToken cancellationToken) =>
 {
     var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
     if (userIdClaim == null)
@@ -352,7 +336,7 @@ app.MapPatch("Booking/UpdateTime", async (ClaimsPrincipal user, BookingService b
     var userId = userIdClaim.Value;
     var isAdmin = user.IsInRole("Admin");
 
-    var result = await booking.RescheduleBooking(userId, bookingId, duration, newStartTime, isAdmin);
+    var result = await booking.RescheduleBooking(userId, bookingId, duration, newStartTime, isAdmin, cancellationToken);
 
     if (result.ErrorMessage == Error.InvalidDuration)
     {

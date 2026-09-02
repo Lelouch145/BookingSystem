@@ -15,41 +15,33 @@ namespace BookingSystem.Api.Services;
 public class BookingService
 {
     private readonly AppDbContext _dbContext;
+    private readonly BookingTimeService _bookingTimeService;
 
-    public BookingService(AppDbContext dbContext)
+    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService)
     {
         _dbContext = dbContext;
+        _bookingTimeService = bookingTimeService;
 
     }
 
-    public async Task<BookingResult> CreateBooking(int courtId, DateTime startTime, int duration, string userId)
+    public async Task<BookingResult> CreateBooking(int courtId, DateTime startTime, int duration, string userId, CancellationToken cancellationToken)
     {
 
-        var checkAvailability = AvailabilityCheck(startTime, duration);
-        if (checkAvailability.ErrorMessage == Error.InvalidDuration ||
-            checkAvailability.ErrorMessage == Error.BookingCannotBeInThePast)
+        var validationError = _bookingTimeService.ValidateBookingTime(startTime, duration);
+
+        if(validationError != Error.none)
         {
             return new BookingResult
             {
-                ErrorMessage = checkAvailability.ErrorMessage
-            };
-        }
-        var times = checkAvailability.Times.Any(x => x == startTime);
-        if (!times)
-        {
-            return new BookingResult
-            {
-                ErrorMessage = Error.BookingTimeIsNotAvailable
+                ErrorMessage = validationError
             };
         }
         var endTime = startTime.AddMinutes(duration);
-        List<BookingSlot> bookingSlots = new List<BookingSlot>();
-        var slotCount = duration / 30;
 
         await using var transaction = await _dbContext.Database.
-            BeginTransactionAsync();
+            BeginTransactionAsync(cancellationToken);
             
-        var findCourt = await _dbContext.Courts.FirstOrDefaultAsync(x => x.Id == courtId);
+        var findCourt = await _dbContext.Courts.FirstOrDefaultAsync(x => x.Id == courtId, cancellationToken);
 
         if (findCourt == null)
         {
@@ -66,7 +58,7 @@ public class BookingService
             };
         }
 
-        var checkOverLap = CheckOverLap(startTime, duration, courtId, null);
+        var checkOverLap = await _bookingTimeService.CheckOverLapAsync(startTime, duration, courtId, null, cancellationToken);
 
         if (checkOverLap == true)
         {
@@ -75,17 +67,7 @@ public class BookingService
                 ErrorMessage = Error.BookingTimeIsOverlappingWithAnotherBooking
             };
         }
-
-        for(int i = 0; i < slotCount; i++)
-        {
-            var slotStartTime = startTime.AddMinutes(i * 30);
-            BookingSlot bookingSlot = new BookingSlot
-            {
-                CourtId = findCourt.Id,
-                SlotStart = slotStartTime
-            };
-            bookingSlots.Add(bookingSlot);
-        }
+        var bookingSlots = CreateBookingSlots(courtId, startTime, duration, null);
         Booking booking = new Booking
         {
             CourtId = findCourt.Id,
@@ -100,8 +82,8 @@ public class BookingService
         _dbContext.Bookings.Add(booking);
         try
         {
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
         }
         catch(DbUpdateException ex)
@@ -138,99 +120,27 @@ public class BookingService
 
     }
 
-    public AvailabilityResponse AvailabilityCheck(DateTime userInput, int duration)
-    {
-        
-        List<DateTime> times = new List<DateTime>();
-        DateTime endTime;
-        DateTime openingTime;
-        DateTime closingTime;
-        DateTime currentTime;
 
-        if (duration != 60 && duration != 90)
-        {
-            return new AvailabilityResponse
-            {
-                ErrorMessage = Error.InvalidDuration
-            };
-        }
-        if (userInput.DayOfWeek == DayOfWeek.Saturday
-            || userInput.DayOfWeek == DayOfWeek.Sunday)
-        {
-            openingTime = userInput.Date.AddHours(12);
-            closingTime = userInput.Date.AddDays(1);
-            currentTime = openingTime;
-        }
-        else
-        {
-            openingTime = userInput.Date.AddHours(10);
-            closingTime = userInput.Date.AddHours(22);
-            currentTime = openingTime;
-        }
-
-        if (userInput.Date < DateTime.Today)
-        {
-            return new AvailabilityResponse
-            {
-                ErrorMessage = Error.BookingCannotBeInThePast
-            };
-        }
-        while (currentTime < closingTime)
-        {
-            endTime = currentTime.AddMinutes(duration);
-            if (endTime <= closingTime && currentTime > DateTime.Now)
-            {
-                times.Add(currentTime);
-            }
-            currentTime = currentTime.AddMinutes(30);
-        }
-
-        return new AvailabilityResponse
-        {
-            Times = times,
-            ErrorMessage = Error.none
-        };
-    }
-
-    public bool CheckOverLap(DateTime userInput, int duration, int courtId, int? bookingIdToIgnore)
-    {
-
-        var whenBookingEnding = userInput.AddMinutes(duration);
-        var booking = _dbContext.Bookings
-            .Where(x => x.CourtId == courtId &&
-                x.Status == BookingStatus.Confirmed && x.Id != bookingIdToIgnore);
-
-
-        foreach (var time in booking)
-        {
-            if (userInput < time.EndTime && whenBookingEnding > time.StartTime)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public async Task<IEnumerable<Booking>> GetUserBookings(string userId)
+    public async Task<IEnumerable<Booking>> GetUserBookings(string userId, CancellationToken cancellationToken)
     {
         var showBooking = await _dbContext.Bookings.Where(x => x.UserId == userId).
-        OrderBy(x => x.StartTime).ToListAsync();
+        OrderBy(x => x.StartTime).ToListAsync(cancellationToken);
 
         return showBooking;
     }
 
-    public async Task<IEnumerable<Booking>> GetAllBookings()
+    public async Task<IEnumerable<Booking>> GetAllBookings(CancellationToken cancellationToken)
     {
         var allBookings = await _dbContext.Bookings.OrderBy(x => x.StartTime)
-        .ToListAsync();
+        .ToListAsync(cancellationToken);
 
         return allBookings;
     }
 
-    public async Task<CancelBookingOrUpdate> CancelUserBooking(string userId, int bookingId)
+    public async Task<CancelBookingOrUpdate> CancelBooking(string userId, int bookingId, CancellationToken cancellationToken, bool isAdmin)
     {
-        var findBooking = await _dbContext.Bookings.FirstOrDefaultAsync(x => x.UserId == userId
-        && x.Id == bookingId);
+        var findBooking = await _dbContext.Bookings.Include(x => x.BookingSlots)
+            .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
 
         if (findBooking == null)
         {
@@ -239,7 +149,14 @@ public class BookingService
                 ErrorMessage = Error.BookingNotFound
             };
         }
-        else if (findBooking.Status == BookingStatus.Cancelled)
+        if(!isAdmin && userId != findBooking.UserId)
+        {
+            return new CancelBookingOrUpdate
+            {
+                ErrorMessage = Error.UserDoesNotOwnBooking
+            };
+        }
+        if (findBooking.Status == BookingStatus.Cancelled)
         {
             return new CancelBookingOrUpdate
             {
@@ -253,19 +170,30 @@ public class BookingService
                 ErrorMessage = Error.BookingIsCompletedAndCannotBeCancelled
             };
         }
-        var startTime = findBooking.StartTime;
-        var timeLimit = startTime.AddHours(-24);
-        if (DateTime.Now >= timeLimit)
+
+        if (!isAdmin)
         {
-            return new CancelBookingOrUpdate
+
+            var startTime = findBooking.StartTime;
+            var timeLimit = startTime.AddHours(-24);
+            if (DateTime.Now >= timeLimit)
             {
-                ErrorMessage = Error.CannotCancelBooking24HoursBeforeTheBooking
-            };
+                return new CancelBookingOrUpdate
+                {
+                    ErrorMessage = Error.CannotCancelBooking24HoursBeforeTheBooking
+                };
+            }
+
         }
+
+
+
+
         findBooking.Status = BookingStatus.Cancelled;
         try
         {
-            await _dbContext.SaveChangesAsync();
+            _dbContext.BookingSlots.RemoveRange(findBooking.BookingSlots);
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch(DbUpdateConcurrencyException)
         {
@@ -282,43 +210,10 @@ public class BookingService
 
     }
 
-    public async Task<CancelBookingOrUpdate> CancelAdminBooking(int bookingId)
+    public async Task<CancelBookingOrUpdate> RescheduleBooking(string userId, int bookingId, int duration, DateTime newStartTime, bool isAdmin, CancellationToken cancellationToken)
     {
-        var findBooking = await _dbContext.Bookings.FirstOrDefaultAsync(x => x.Id == bookingId);
-
-        if (findBooking == null)
-        {
-            return new CancelBookingOrUpdate
-            {
-                ErrorMessage = Error.BookingNotFound
-            };
-        }
-        else if (findBooking.Status == BookingStatus.Cancelled)
-        {
-            return new CancelBookingOrUpdate
-            {
-                ErrorMessage = Error.BookingIsAlreadyCancelled
-            };
-        }
-        else if (findBooking.Status == BookingStatus.Completed)
-        {
-            return new CancelBookingOrUpdate
-            {
-                ErrorMessage = Error.BookingIsCompletedAndCannotBeCancelled
-            };
-        }
-        findBooking.Status = BookingStatus.Cancelled;
-        await _dbContext.SaveChangesAsync();
-
-        return new CancelBookingOrUpdate
-        {
-            Success = true
-        };
-    }
-
-    public async Task<CancelBookingOrUpdate> RescheduleBooking(string userId, int bookingId, int duration, DateTime newStartTime, bool isAdmin)
-    {
-        var findBooking = await _dbContext.Bookings.FirstOrDefaultAsync(x => x.Id == bookingId);
+        var findBooking = await _dbContext.Bookings.Include(x => x.BookingSlots)
+            .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
 
         if (findBooking == null)
         {
@@ -334,7 +229,7 @@ public class BookingService
                 return new CancelBookingOrUpdate
                 {
                     ErrorMessage = Error.UserDoesNotOwnBooking
-                }; 
+                };
             }
         }
         if (findBooking.Status == BookingStatus.Cancelled)
@@ -352,26 +247,16 @@ public class BookingService
             };
         }
 
-        var checkAvailability = AvailabilityCheck(newStartTime, duration);
-        if (checkAvailability.ErrorMessage == Error.InvalidDuration ||
-            checkAvailability.ErrorMessage == Error.BookingCannotBeInThePast)
+        var validationError = _bookingTimeService.ValidateBookingTime(newStartTime, duration);
+
+        if(validationError != Error.none)
         {
             return new CancelBookingOrUpdate
             {
-                ErrorMessage = checkAvailability.ErrorMessage
+                ErrorMessage = validationError
             };
         }
-
-
-        var times = checkAvailability.Times.Any(x => x == newStartTime);
-        if (!times)
-        {
-            return new CancelBookingOrUpdate
-            {
-                ErrorMessage = Error.BookingTimeIsNotAvailable
-            };
-        }
-        var checkOverLap = CheckOverLap(newStartTime, duration, findBooking.CourtId, findBooking.Id);
+        var checkOverLap = await _bookingTimeService.CheckOverLapAsync(newStartTime, duration, findBooking.CourtId, findBooking.Id, cancellationToken);
 
         if (checkOverLap == true)
         {
@@ -380,20 +265,47 @@ public class BookingService
                 ErrorMessage = Error.BookingTimeIsOverlappingWithAnotherBooking
             };
         }
+        
         var endTime = newStartTime.AddMinutes(duration);
 
         findBooking.StartTime = newStartTime;
         findBooking.EndTime = endTime;
+
+
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            _dbContext.BookingSlots.RemoveRange(findBooking.BookingSlots);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            var newBookingSlots = CreateBookingSlots(findBooking.CourtId, newStartTime, duration, bookingId);
+
+            _dbContext.BookingSlots.AddRange(newBookingSlots);
+
             await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync(cancellationToken);
         }
-        catch(DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException)
         {
+            await transaction.RollbackAsync();
             return new CancelBookingOrUpdate
             {
                 ErrorMessage = Error.BookingWasModifiedByAnotherRequest
             };
+        }
+        catch (DbUpdateException ex)
+        {
+            await transaction.RollbackAsync();
+            if (ex.InnerException is SqlException sqlException &&
+                (sqlException.Number == 2601 || sqlException.Number == 2627))
+            {
+                return new CancelBookingOrUpdate
+                {
+                    ErrorMessage = Error.BookingTimeIsOverlappingWithAnotherBooking
+                };
+            }
+            throw;
         }
 
         return new CancelBookingOrUpdate
@@ -401,6 +313,30 @@ public class BookingService
             Success = true
         };
     }
+
+    private List<BookingSlot> CreateBookingSlots(int courtId, DateTime startTime, int duration, int? bookingId)
+    {
+        var slotCount = duration / 30;
+        List<BookingSlot> bookingSlots = new List<BookingSlot>();
+
+        for (int i = 0; i < slotCount; i++)
+        {
+            var slotStartTime = startTime.AddMinutes(i * 30);
+            BookingSlot newBookingSlot = new BookingSlot
+            {
+                CourtId = courtId,
+                SlotStart = slotStartTime
+            };
+            if (bookingId.HasValue)
+            {
+                newBookingSlot.BookingId = bookingId.Value;
+            }
+            bookingSlots.Add(newBookingSlot);
+        }
+        return bookingSlots;
+    }
+    
+
     
 
 }
