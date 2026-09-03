@@ -36,6 +36,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Booking>()
         .Property(x => x.RowVersion)
         .IsRowVersion();
+
+        builder.Entity<Court>()
+        .HasIndex(x => x.CourtName)
+        .IsUnique();
     }
     public DbSet<Court> Courts { get; set; }
     public DbSet<Booking> Bookings { get; set; }

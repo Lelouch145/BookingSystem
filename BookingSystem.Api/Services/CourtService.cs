@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Update.Internal;
 
@@ -17,10 +18,8 @@ public class CourtService
     {
         _dbContext = dbContext;
     }
-    public async Task<CourtResult> CreateCourt(string courtName, string description)
+    public async Task<CourtResult> CreateCourt(string courtName, string description, CancellationToken cancellationToken)
     {
-        courtName = courtName.Trim().ToLowerInvariant();
-        courtName = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(courtName);
         if (string.IsNullOrWhiteSpace(courtName))
         {
             return new CourtResult
@@ -28,54 +27,75 @@ public class CourtService
                 ErrorMessage = Error.InvalidCourtName
             };
         }
-        var duplicateControl = await _dbContext.Courts.FirstOrDefaultAsync(x =>
-            x.CourtName == courtName);
-        if(duplicateControl != null)
+        courtName = NormalizeString(courtName);
+        try
         {
-            return new CourtResult
+            var duplicateControl = await _dbContext.Courts.AnyAsync(x =>
+                x.CourtName == courtName, cancellationToken);
+            if (duplicateControl)
             {
-                Courts = null,
-                ErrorMessage = Error.CourtAlreadyExists
+                return new CourtResult
+                {
+                    ErrorMessage = Error.CourtAlreadyExists
+                };
+            }
+            Court newCourt = new Court
+            {
+                CourtName = courtName,
+                Description = description,
             };
+
+            _dbContext.Courts.Add(newCourt);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            CourtResult courtResult = new CourtResult
+            {
+                Courts = newCourt,
+                ErrorMessage = Error.none
+            };
+
+
+
+            return courtResult;
         }
-        Court newCourt = new Court
+        catch (DbUpdateException ex)
         {
-            CourtName = courtName,
-            Description = description,
-        };
+            if (ex.InnerException is SqlException sqlException && (sqlException.Number == 2601 || sqlException.Number == 2627))
+            {
+                return new CourtResult
+                {
+                    ErrorMessage = Error.CourtAlreadyExists
+                };
+            }
+            throw;
+        }
 
-        _dbContext.Courts.Add(newCourt);
-        await _dbContext.SaveChangesAsync();
-        CourtResult courtResult = new CourtResult
-        {
-            Courts = newCourt,
-            ErrorMessage = Error.none
-        };
-
-        
-
-        return courtResult;
 
     }
 
-    public async Task<IEnumerable<Court>> ShowCourts()
+    public async Task<IEnumerable<Court>> ShowCourts(CancellationToken cancellationToken)
     {
-        return await _dbContext.Courts.ToListAsync();
+        return await _dbContext.Courts.ToListAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<Court>> ShowActiveCourts()
+    public async Task<IEnumerable<Court>> ShowActiveCourts(CancellationToken cancellationToken)
     {
-        var activeCourts = await _dbContext.Courts.Where(x => x.IsActive).ToListAsync();
+        var activeCourts = await _dbContext.Courts.Where(x => x.IsActive).ToListAsync(cancellationToken);
 
         return activeCourts;
 
     }
 
-    public async Task<CourtResult> DisableCourt(string courtName)
+    public async Task<CourtResult> DisableCourt(string courtName, CancellationToken cancellationToken)
     {
-        courtName = courtName.Trim().ToLowerInvariant();
-        courtName = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(courtName);
-        var search = await _dbContext.Courts.FirstOrDefaultAsync(x => x.CourtName == courtName);
+        if (string.IsNullOrWhiteSpace(courtName))
+        {
+            return new CourtResult
+            {
+                ErrorMessage = Error.InvalidCourtName
+            };
+        }
+        courtName = NormalizeString(courtName);
+        var search = await _dbContext.Courts.FirstOrDefaultAsync(x => x.CourtName == courtName, cancellationToken);
 
         if (search == null)
         {
@@ -94,23 +114,18 @@ public class CourtService
         }
         search.IsActive = false;
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new CourtResult
         {
-            Courts = null,
             ErrorMessage = Error.none
         };
 
 
     }
 
-    public async Task<CourtResult> UpdateCourt(string findCourt, string courtName, string description, bool isActive)
+    public async Task<CourtResult> UpdateCourt(string findCourt, string courtName, string description, bool isActive, CancellationToken cancellationToken)
     {
-        courtName = courtName.Trim().ToLowerInvariant();
-        courtName = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(courtName);
-        findCourt = findCourt.Trim().ToLowerInvariant();
-        findCourt = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(findCourt);
 
         if (string.IsNullOrWhiteSpace(courtName))
         {
@@ -120,45 +135,68 @@ public class CourtService
                 ErrorMessage = Error.InvalidCourtName
             };
         }
-        else if (string.IsNullOrWhiteSpace(findCourt))
+        if (string.IsNullOrWhiteSpace(findCourt))
         {
             return new CourtResult
             {
-                Courts = null,
                 ErrorMessage = Error.InvalidCourtSearchName
             };
         }
-        var databaseCourt = await _dbContext.Courts.FirstOrDefaultAsync(x => x.CourtName == findCourt);
+
+        courtName = NormalizeString(courtName);
+        findCourt = NormalizeString(findCourt);
+
+        var databaseCourt = await _dbContext.Courts.FirstOrDefaultAsync(x => x.CourtName == findCourt, cancellationToken);
 
         if (databaseCourt == null)
         {
             return new CourtResult
             {
-                Courts = null,
                 ErrorMessage = Error.CouldNotFindTheCourtInDataBase
             };
         }
-        var duplicateControl = await _dbContext.Courts.FirstOrDefaultAsync(x =>
-        x.CourtName == courtName && x.Id != databaseCourt.Id);
-        if(duplicateControl != null)
+        try
         {
+            var duplicateControl = await _dbContext.Courts.AnyAsync(x =>
+            x.CourtName == courtName && x.Id != databaseCourt.Id, cancellationToken);
+            if (duplicateControl)
+            {
+                return new CourtResult
+                {
+                    ErrorMessage = Error.CourtAlreadyExists
+                };
+            }
+
+            databaseCourt.CourtName = courtName;
+            databaseCourt.Description = description;
+            databaseCourt.IsActive = isActive;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
             return new CourtResult
             {
-                Courts = null,
-                ErrorMessage = Error.CourtAlreadyExists
+                Courts = databaseCourt,
+                ErrorMessage = Error.none
             };
         }
-
-        databaseCourt.CourtName = courtName;
-        databaseCourt.Description = description;
-        databaseCourt.IsActive = isActive;
-        await _dbContext.SaveChangesAsync();
-
-        return new CourtResult
+        catch(DbUpdateException ex)
         {
-            Courts = databaseCourt,
-            ErrorMessage = Error.none
-        };
+            if (ex.InnerException is SqlException sqlException && (sqlException.Number == 2601 || sqlException.Number == 2627))
+            {
+                return new CourtResult
+                {
+                    ErrorMessage = Error.CourtAlreadyExists
+                };
+            }
+            throw;
+        }
 
+
+    }
+    
+    private string NormalizeString(string courtName)
+    {
+        courtName = courtName.Trim().ToLowerInvariant();
+        courtName = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(courtName);
+        return courtName;
     }
 }

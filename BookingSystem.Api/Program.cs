@@ -127,9 +127,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string courtName, string description) =>
+app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string courtName, string description, CancellationToken cancellationToken) =>
 {
-    var result = await court.CreateCourt(courtName, description);
+    var result = await court.CreateCourt(courtName, description, cancellationToken);
 
     if (result.ErrorMessage == Error.InvalidCourtName)
     {
@@ -142,15 +142,15 @@ app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string 
     return Results.Ok(result);
 }).RequireAuthorization("Admin");
 
-app.MapGet("Courts/ShowCourts", (CourtService showCourt, ClaimsPrincipal user) =>
+app.MapGet("Courts/ShowCourts", (CourtService showCourt, ClaimsPrincipal user, CancellationToken cancellationToken) =>
 {
     var isAdmin = user.IsInRole("Admin");
 
     if (isAdmin)
     {
-        return showCourt.ShowCourts();
+        return showCourt.ShowCourts(cancellationToken);
     }
-    return showCourt.ShowActiveCourts();
+    return showCourt.ShowActiveCourts(cancellationToken);
 
 
 }).RequireAuthorization();
@@ -162,11 +162,11 @@ app.MapGet("/test-auth", () =>
 .RequireAuthorization();
 
 
-app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, string courtName) =>
+app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, string courtName, CancellationToken cancellationToken) =>
 {
 
 
-    var result = await disableCourt.DisableCourt(courtName);
+    var result = await disableCourt.DisableCourt(courtName, cancellationToken);
 
     if (result.ErrorMessage == Error.CouldNotFindTheCourtInDataBase)
     {
@@ -179,11 +179,11 @@ app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, str
     return Results.Ok(result);
 }).RequireAuthorization("Admin");
 
-app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string courtName, string description, bool IsActive, string findCourt) =>
+app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string courtName, string description, bool IsActive, string findCourt, CancellationToken cancellationToken) =>
 {
 
 
-    var result = await courtUpdate.UpdateCourt(findCourt, courtName, description, IsActive);
+    var result = await courtUpdate.UpdateCourt(findCourt, courtName, description, IsActive, cancellationToken);
     if (result.ErrorMessage == Error.InvalidCourtName)
     {
         return Results.BadRequest(result.ErrorMessage);
