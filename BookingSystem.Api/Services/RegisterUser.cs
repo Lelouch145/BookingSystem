@@ -27,47 +27,42 @@ public class RegisterService
 
         var creation = await _userManager.CreateAsync(applicationUser, password);
 
+        if (!creation.Succeeded)
+        {
+            return new RegisterResult
+            {
+                Success = false,
+                Errors = creation.Errors
+            };
+        }
+        var roleResult = await _userManager.AddToRoleAsync(applicationUser, "User");
+        if (!roleResult.Succeeded)
+        {
+            var deleteResult = await _userManager.DeleteAsync(applicationUser);
+            if (!deleteResult.Succeeded)
+            {
+                var errors = roleResult.Errors.Concat(deleteResult.Errors);
+                return new RegisterResult
+                {
+                    Errors = errors
+                };
+            }
+            return new RegisterResult
+            {
+                Errors = roleResult.Errors
+            };
+        }
         UserRegisterResponse userRegisterResponse = new UserRegisterResponse()
         {
             UserName = applicationUser.UserName,
             Email = applicationUser.Email
         };
-
-        if (creation.Succeeded)
-        {
-            var roleResult = await _userManager.AddToRoleAsync(applicationUser, "User");
-            if (!roleResult.Succeeded)
-            {
-                var deleteResult = await _userManager.DeleteAsync(applicationUser);
-                if (!deleteResult.Succeeded)
-                {
-                    var errors = roleResult.Errors.Concat(deleteResult.Errors);
-                    return new RegisterResult
-                    {
-                        Errors = errors
-                    };
-                }
-                return new RegisterResult
-                {
-                    Errors = roleResult.Errors
-                };
-            }
             return new RegisterResult
             {
                 User = userRegisterResponse,
                 Success = true,
-                Errors = creation.Errors
             };
-        }
-        else
-        {
-            return new RegisterResult
-            {
-                User = null,
-                Success = false,
-                Errors = creation.Errors
-            };
-        }
+
 
     }
 
