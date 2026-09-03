@@ -110,11 +110,19 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var app = builder.Build();
 
 await using var scope = app.Services.CreateAsyncScope();
-
+try
+{
     var seedService = scope.ServiceProvider
         .GetRequiredService<SeedService>();
 
-    await seedService.SeedRoleAsync();
+    await seedService.SeedDataAsync();
+}
+catch(Exception ex)
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "Ett fel uppstod när databasen skulle seedas");
+}
+
 
 app.UseAuthentication();
 app.UseAuthorization();

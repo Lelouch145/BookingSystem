@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 public class BackGroundTest
 {
+
     [Fact]
     public async Task TestAsync()
     {
@@ -27,7 +28,7 @@ public class BackGroundTest
 
         Court newCourt = new Court
         {
-            CourtName = "TestCourt",
+            CourtName = $"Court-{Guid.NewGuid()}",
             IsActive = true
         };
         dbContext.Courts.Add(newCourt);
@@ -57,4 +58,5 @@ public class BackGroundTest
         Assert.Equal(BookingStatus.Completed, updateBooking.Status);
 
     }
+
 }

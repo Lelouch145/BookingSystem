@@ -15,8 +15,23 @@ public class BookingConcurrencyTests
 
 
     [Fact]
+    public async Task ResetDatabase()
+    {
+        var builder = new ConfigurationBuilder().AddUserSecrets<BookingConcurrencyTests>().Build();
+        var connectionString = builder.GetConnectionString("DefaultConnection");
+
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
+        var dbContext = new AppDbContext(options);
+
+        await dbContext.Database.EnsureDeletedAsync();
+        await dbContext.Database.MigrateAsync();
+    }
+
+    [Fact]
     public async Task TransactionTest()
     {
+
+
         var builder = new ConfigurationBuilder().AddUserSecrets<BookingConcurrencyTests>().Build();
         var connectionString = builder.GetConnectionString("DefaultConnection");
 
@@ -31,7 +46,7 @@ public class BookingConcurrencyTests
 
         Court newCourt = new Court
         {
-            CourtName = "Court1",
+            CourtName = $"Court-{Guid.NewGuid()}",
             IsActive = true,
         };
         dbContext.Courts.Add(newCourt);
@@ -75,11 +90,13 @@ public class BookingConcurrencyTests
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
         var dbContext = new AppDbContext(options);
         var secondDbContext = new AppDbContext(options);
+   
+
         await dbContext.Database.MigrateAsync();
 
         Court newCourt = new Court
         {
-            CourtName = "Test",
+            CourtName = $"Court-{Guid.NewGuid()}",
             IsActive = true
         };
         dbContext.Courts.Add(newCourt);
@@ -123,13 +140,13 @@ public class BookingConcurrencyTests
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
         var dbContext = new AppDbContext(options);
         var secondDbContext = new AppDbContext(options);
+
         await dbContext.Database.MigrateAsync();
 
         BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
-
         Court newCourt = new Court
         {
-            CourtName = "Test",
+            CourtName = $"Court-{Guid.NewGuid()}",
             IsActive = true
         };
         dbContext.Courts.Add(newCourt);
@@ -180,6 +197,7 @@ public class BookingConcurrencyTests
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
         var dbContext = new AppDbContext(options);
         var secondDbContext = new AppDbContext(options);
+
         await dbContext.Database.MigrateAsync();
 
         BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
@@ -187,7 +205,7 @@ public class BookingConcurrencyTests
 
         Court newCourt = new Court
         {
-            CourtName = "Test",
+            CourtName = $"Court-{Guid.NewGuid()}",
             IsActive = true
         };
         dbContext.Courts.Add(newCourt);
@@ -235,6 +253,6 @@ public class BookingConcurrencyTests
         Assert.Equal(Error.BookingWasModifiedByAnotherRequest, errorcode.ErrorMessage);
 
     }
-    
+
 
 }
