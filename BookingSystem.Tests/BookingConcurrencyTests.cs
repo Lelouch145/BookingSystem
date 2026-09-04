@@ -17,11 +17,8 @@ public class BookingConcurrencyTests
     [Fact]
     public async Task ResetDatabase()
     {
-        var builder = new ConfigurationBuilder().AddUserSecrets<BookingConcurrencyTests>().Build();
-        var connectionString = builder.GetConnectionString("DefaultConnection");
-
-        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
-        var dbContext = new AppDbContext(options);
+        var dbContextService = new DbContextHelper();
+        var dbContext = dbContextService.DbContextHellper(); 
 
         await dbContext.Database.EnsureDeletedAsync();
         await dbContext.Database.MigrateAsync();
@@ -32,12 +29,9 @@ public class BookingConcurrencyTests
     {
 
 
-        var builder = new ConfigurationBuilder().AddUserSecrets<BookingConcurrencyTests>().Build();
-        var connectionString = builder.GetConnectionString("DefaultConnection");
-
-        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
-        var dbContext = new AppDbContext(options);
-        var secondDbContext = new AppDbContext(options);
+        var dbContextService = new DbContextHelper();
+        var dbContext = dbContextService.DbContextHellper(); 
+        var secondDbContext = dbContextService.DbContextHellper();
 
         await dbContext.Database.MigrateAsync();
 
@@ -85,11 +79,9 @@ public class BookingConcurrencyTests
     [Fact]
     public async Task RowVersionTest()
     {
-        var config = new ConfigurationBuilder().AddUserSecrets<BookingConcurrencyTests>().Build();
-        var connectionString = config.GetConnectionString("DefaultConnection");
-        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
-        var dbContext = new AppDbContext(options);
-        var secondDbContext = new AppDbContext(options);
+        var dbContextService = new DbContextHelper();
+        var dbContext = dbContextService.DbContextHellper();
+        var secondDbContext = dbContextService.DbContextHellper();
    
 
         await dbContext.Database.MigrateAsync();
@@ -134,12 +126,9 @@ public class BookingConcurrencyTests
     [Fact]
     public async Task CancelBookingConcurrency()
     {
-        var config = new ConfigurationBuilder().AddUserSecrets<BookingConcurrencyTests>().Build();
-        var connectionString = config.GetConnectionString("DefaultConnection");
-
-        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
-        var dbContext = new AppDbContext(options);
-        var secondDbContext = new AppDbContext(options);
+        var dbContextService = new DbContextHelper();
+        var dbContext = dbContextService.DbContextHellper();
+        var secondDbContext = dbContextService.DbContextHellper();
 
         await dbContext.Database.MigrateAsync();
 
@@ -192,11 +181,9 @@ public class BookingConcurrencyTests
     [Fact]
     public async Task RescheduleBookingConcurrency()
     {
-        var config = new ConfigurationBuilder().AddUserSecrets<BookingConcurrencyTests>().Build();
-        var connectionString = config.GetConnectionString("DefaultConnection");
-        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
-        var dbContext = new AppDbContext(options);
-        var secondDbContext = new AppDbContext(options);
+        var dbContextService = new DbContextHelper();
+        var dbContext = dbContextService.DbContextHellper();
+        var secondDbContext = dbContextService.DbContextHellper();
 
         await dbContext.Database.MigrateAsync();
 

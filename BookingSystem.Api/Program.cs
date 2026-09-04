@@ -100,8 +100,8 @@ builder.Services.AddAuthentication(options =>
     });
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("Admin", policy =>
-        policy.RequireRole("Admin"));
+    options.AddPolicy(RoleNames.Admin, policy =>
+        policy.RequireRole(RoleNames.Admin));
 });
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -148,11 +148,11 @@ app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string 
         return Results.Conflict(result.ErrorMessage);
     }
     return Results.Ok(result);
-}).RequireAuthorization("Admin");
+}).RequireAuthorization(RoleNames.Admin);
 
 app.MapGet("Courts/ShowCourts", (CourtService showCourt, ClaimsPrincipal user, CancellationToken cancellationToken) =>
 {
-    var isAdmin = user.IsInRole("Admin");
+    var isAdmin = user.IsInRole(RoleNames.Admin);
 
     if (isAdmin)
     {
@@ -185,7 +185,7 @@ app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, str
         return Results.Conflict(result.ErrorMessage);
     }
     return Results.Ok(result);
-}).RequireAuthorization("Admin");
+}).RequireAuthorization(RoleNames.Admin);
 
 app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string courtName, string description, bool IsActive, string findCourt, CancellationToken cancellationToken) =>
 {
@@ -205,7 +205,7 @@ app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string 
         return Results.Conflict(result.ErrorMessage);
     }
     return Results.Ok();
-}).RequireAuthorization("Admin");
+}).RequireAuthorization(RoleNames.Admin);
 
 app.MapPost("Register", async (RegisterService services, RegisterRequest request) =>
 {
@@ -277,7 +277,7 @@ app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int
 
 app.MapGet("Booking", async (ClaimsPrincipal user, BookingService booking, CancellationToken cancellationToken) =>
 {
-    var isAdmin = user.IsInRole("Admin");
+    var isAdmin = user.IsInRole(RoleNames.Admin);
 
     if (isAdmin)
     {
@@ -306,7 +306,7 @@ app.MapPatch("Booking/Cancel", async (ClaimsPrincipal user, BookingService booki
         return Results.Unauthorized();
     }
     var userId = userIdClaim.Value;
-    var isAdmin = user.IsInRole("Admin");
+    var isAdmin = user.IsInRole(RoleNames.Admin);
 
     var resultUser = await booking.CancelBooking(userId, bookingId, cancellationToken, isAdmin);
 
@@ -342,7 +342,7 @@ app.MapPatch("Booking/UpdateTime", async (ClaimsPrincipal user, BookingService b
     }
 
     var userId = userIdClaim.Value;
-    var isAdmin = user.IsInRole("Admin");
+    var isAdmin = user.IsInRole(RoleNames.Admin);
 
     var result = await booking.RescheduleBooking(userId, bookingId, duration, newStartTime, isAdmin, cancellationToken);
 

@@ -13,10 +13,8 @@ public class BackGroundTest
     [Fact]
     public async Task TestAsync()
     {
-        var builder = new ConfigurationBuilder().AddUserSecrets<BackGroundTest>().Build();
-        var connectionString = builder.GetConnectionString("DefaultConnection");
-        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
-        var dbContext = new AppDbContext(options);
+        var dbContextService = new DbContextHelper();
+        var dbContext = dbContextService.DbContextHellper(); 
 
 
         ApplicationUser newUser = new ApplicationUser

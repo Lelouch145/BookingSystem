@@ -144,7 +144,7 @@ public class CourtService
         }
 
         courtName = NormalizeString(courtName);
-        findCourt = NormalizeString(findCourt);
+        //findCourt = NormalizeString(findCourt);
 
         var databaseCourt = await _dbContext.Courts.FirstOrDefaultAsync(x => x.CourtName == findCourt, cancellationToken);
 
