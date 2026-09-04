@@ -92,7 +92,7 @@ public class BookingTimeService
     {
 
         var whenBookingEnding = userInput.AddMinutes(duration);
-        var hasOverlap= await _dbContext.Bookings
+        var hasOverlap = await _dbContext.Bookings
             .AnyAsync(x => x.CourtId == courtId &&
                 x.Status == BookingStatus.Confirmed && x.Id != bookingIdToIgnore && x.EndTime > userInput 
                 && x.StartTime < whenBookingEnding, cancellationToken);

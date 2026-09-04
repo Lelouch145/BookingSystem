@@ -66,11 +66,6 @@ public class SeedService
 
 
             }
-            else
-            {
-                var errors = string.Join(", ", createAdminAcc.Errors.Select(x => x.Description));
-                throw new InvalidOperationException($"Could not create Admin account: {errors}");
-            }
         }
 
         var isAdmin = await _userManager.IsInRoleAsync(adminUser, AdminRole);

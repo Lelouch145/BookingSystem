@@ -7,6 +7,7 @@ using Microsoft.VisualBasic;
 
 public class RegisterService
 {
+    private const string UserRole = "User"; 
 
     private readonly UserManager<ApplicationUser> _userManager;
 
@@ -35,7 +36,7 @@ public class RegisterService
                 Errors = creation.Errors
             };
         }
-        var roleResult = await _userManager.AddToRoleAsync(applicationUser, "User");
+        var roleResult = await _userManager.AddToRoleAsync(applicationUser, UserRole);
         if (!roleResult.Succeeded)
         {
             var deleteResult = await _userManager.DeleteAsync(applicationUser);
