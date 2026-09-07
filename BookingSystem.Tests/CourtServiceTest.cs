@@ -11,7 +11,7 @@ public class CourtServiceTests
     [Fact]
     public async Task CreateCourtTest()
     {
-        var dbContextService = new DbContextHelper();
+        var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper();
 
 
@@ -32,7 +32,7 @@ public class CourtServiceTests
     [Fact]
     public async Task CreateCourtTestInvalidcourtName()
     {
-        var dbContextService = new DbContextHelper();
+        var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper();
 
         var courtService = new CourtService(dbContext);
@@ -46,7 +46,7 @@ public class CourtServiceTests
     [Fact]
     public async Task CreateCourtDuplicateTest()
     {
-        var dbContextService = new DbContextHelper();
+        var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper();
 
         var courtService = new CourtService(dbContext);
@@ -54,13 +54,10 @@ public class CourtServiceTests
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
             .ToTitleCase(courtName.Trim().ToLowerInvariant());
+        var courtServiceHelper = new HelperUnit();
 
-        Court newCourt = new Court
-        {
-            CourtName = courtName,
-            Description = "",
-            IsActive = true,
-        };
+        var newCourt = courtServiceHelper.CreateNewCourt(courtName);
+
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
         var result = await courtService.CreateCourt(courtName, "", CancellationToken.None);
@@ -71,19 +68,16 @@ public class CourtServiceTests
     [Fact]
     public async Task DisableCourtTest()
     {
-        var dbContextServices = new DbContextHelper();
+        var dbContextServices = new HelperUnit();
         var dbContext = dbContextServices.DbContextHellper();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
             .ToTitleCase(courtName.Trim().ToLowerInvariant());
 
-        Court newCourt = new Court
-        {
-            CourtName = courtName,
-            Description = "",
-            IsActive = true,
-        };
+        var courtServiceHelper = new HelperUnit();
+
+        var newCourt = courtServiceHelper.CreateNewCourt(courtName);
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
@@ -98,19 +92,16 @@ public class CourtServiceTests
     [Fact]
     public async Task DisableCourtSearchNullTest()
     {
-        var dbContextServices = new DbContextHelper();
+        var dbContextServices = new HelperUnit();
         var dbContext = dbContextServices.DbContextHellper();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
             .ToTitleCase(courtName.Trim().ToLowerInvariant());
 
-        Court newCourt = new Court
-        {
-            CourtName = courtName,
-            Description = "",
-            IsActive = true,
-        };
+        var courtServiceHelper = new HelperUnit();
+
+        var newCourt = courtServiceHelper.CreateNewCourt(courtName);
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
@@ -123,7 +114,7 @@ public class CourtServiceTests
     [Fact]
     public async Task UpdateCourtTest()
     {
-        var dbContextServices = new DbContextHelper();
+        var dbContextServices = new HelperUnit();
         var dbContext = dbContextServices.DbContextHellper();
 
         var courtName = $"Court-{Guid.NewGuid()}";
@@ -134,12 +125,8 @@ public class CourtServiceTests
         var newNormalizedCourtName = CultureInfo.InvariantCulture.TextInfo
             .ToTitleCase(newCourtName.Trim().ToLowerInvariant());
         
-
-        Court newCourt = new Court
-        {
-            CourtName = courtName,
-            Description = "",
-        };
+        var courtServiceHelper = new HelperUnit();
+        var newCourt = courtServiceHelper.CreateNewCourt(courtName);
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 

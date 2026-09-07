@@ -17,7 +17,7 @@ public class BookingConcurrencyTests
     [Fact]
     public async Task ResetDatabase()
     {
-        var dbContextService = new DbContextHelper();
+        var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper(); 
 
         await dbContext.Database.EnsureDeletedAsync();
@@ -29,7 +29,7 @@ public class BookingConcurrencyTests
     {
 
 
-        var dbContextService = new DbContextHelper();
+        var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper(); 
         var secondDbContext = dbContextService.DbContextHellper();
 
@@ -79,7 +79,7 @@ public class BookingConcurrencyTests
     [Fact]
     public async Task RowVersionTest()
     {
-        var dbContextService = new DbContextHelper();
+        var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper();
         var secondDbContext = dbContextService.DbContextHellper();
    
@@ -126,7 +126,7 @@ public class BookingConcurrencyTests
     [Fact]
     public async Task CancelBookingConcurrency()
     {
-        var dbContextService = new DbContextHelper();
+        var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper();
         var secondDbContext = dbContextService.DbContextHellper();
 
@@ -181,7 +181,7 @@ public class BookingConcurrencyTests
     [Fact]
     public async Task RescheduleBookingConcurrency()
     {
-        var dbContextService = new DbContextHelper();
+        var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper();
         var secondDbContext = dbContextService.DbContextHellper();
 
