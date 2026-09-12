@@ -7,8 +7,25 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-public class BackGroundTest
+public class BackGroundTest : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
+
+    private DatabaseFixture _databaseFixture;
+
+    public BackGroundTest(DatabaseFixture databaseFixture)
+    {
+        _databaseFixture = databaseFixture;
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _databaseFixture.ResetDatabaseAsync();
+    }
+
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
 
     [Fact]
     public async Task TestAsync()

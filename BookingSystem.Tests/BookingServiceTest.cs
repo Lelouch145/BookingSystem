@@ -2,11 +2,30 @@ using System.Globalization;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BookingSystem.Tests;
 
-public class BookingServiceTests
+public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
+    private DatabaseFixture _databaseFixture;
+
+    public BookingServiceTests(DatabaseFixture databaseFixture)
+    {
+        _databaseFixture = databaseFixture;
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _databaseFixture.ResetDatabaseAsync();
+    }
+
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
+
+
     [Fact]
     public async Task CreateBookingTest()
     {
@@ -54,7 +73,7 @@ public class BookingServiceTests
 
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
-        var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
+        var startTime = DateTime.Now.Date.AddDays(2).AddHours(18).AddMinutes(30);
         var endTime = startTime.AddMinutes(60);
 
         Booking booking = new Booking

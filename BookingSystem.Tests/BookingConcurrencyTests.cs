@@ -9,10 +9,25 @@ using Xunit.Sdk;
 
 namespace BookingSystem.Tests;
 
-public class BookingConcurrencyTests
+public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
 
+    private DatabaseFixture _databaseFixture;
 
+    public BookingConcurrencyTests(DatabaseFixture databaseFixture)
+    {
+        _databaseFixture = databaseFixture;
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _databaseFixture.ResetDatabaseAsync();
+    }
+
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
 
     [Fact]
     public async Task ResetDatabase()

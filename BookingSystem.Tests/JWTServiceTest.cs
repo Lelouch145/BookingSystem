@@ -12,8 +12,22 @@ using Microsoft.VisualBasic;
 
 namespace BookingSystem.Tests;
 
-public class JWTServiceTest
+public class JWTServiceTest : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
+    private DatabaseFixture _databaseFixture;
+
+    public JWTServiceTest(DatabaseFixture databaseFixture)
+    {
+        _databaseFixture = databaseFixture;
+    }
+    public async Task InitializeAsync()
+    {
+        await _databaseFixture.ResetDatabaseAsync();
+    }
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
     [Fact]
     public async Task TokenCreationAsync()
     {
@@ -62,9 +76,9 @@ public class JWTServiceTest
         var claims = token.Claims.Select(x => new { x.Type, x.Value }).ToList();
     
         Assert.Equal("TestIssuer", token.Issuer);
-        Assert.Contains(claims, x => x.Type == ClaimTypes.Email && x.Value == "test@test.com");
+        Assert.Contains(claims, x => x.Type == ClaimTypes.Email && x.Value == user.Email);
         Assert.Contains(claims, x => x.Type == ClaimTypes.NameIdentifier && x.Value == user.Id);
-        Assert.Contains(claims, x => x.Type == ClaimTypes.Name && x.Value == "TestUser");
+        Assert.Contains(claims, x => x.Type == ClaimTypes.Name && x.Value == user.UserName);
 
 
             

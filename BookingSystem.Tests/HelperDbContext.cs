@@ -31,8 +31,8 @@ public class HelperUnit
     {
         var newUser = new ApplicationUser
         {
-            UserName = "TestUser",
-            Email = "test@test.com"
+            UserName = $"TestUser-{Guid.NewGuid()}",
+            Email = $"test-{Guid.NewGuid()}@test.com"
         };
         return newUser;
     }
