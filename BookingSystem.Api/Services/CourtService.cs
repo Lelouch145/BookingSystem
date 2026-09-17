@@ -15,6 +15,8 @@ namespace BookingSystem.Api.Services;
 public class CourtService
 {
     private const string CourtsAll = "courts:all";
+    private const string CourtsActive = "courts:active";
+    private const int TTLTime = 5;
     private readonly AppDbContext _dbContext;
     private readonly IDistributedCache _cache;
     private readonly ILogger<CourtService> _logger;
@@ -61,7 +63,8 @@ public class CourtService
             };
 
 
-
+            await InvalidateCourtCacheAsync(CourtsAll, cancellationToken);
+            await InvalidateCourtCacheAsync(CourtsActive, cancellationToken);
             return courtResult;
         }
         catch (DbUpdateException ex)
@@ -104,7 +107,7 @@ public class CourtService
         var serializedCourts = JsonSerializer.Serialize(courts);
         var options = new DistributedCacheEntryOptions
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTLTime)
         };
         await _cache.SetStringAsync(CourtsAll, serializedCourts, options, cancellationToken);
         return courts;
@@ -112,8 +115,29 @@ public class CourtService
 
     public async Task<IEnumerable<Court>> ShowActiveCourts(CancellationToken cancellationToken)
     {
+        var cacheActiveCourts = await _cache.GetStringAsync(CourtsActive, cancellationToken);
+        if (cacheActiveCourts != null)
+        {
+            try
+            {
+                var deserializedCache = JsonSerializer.Deserialize<List<Court>>(cacheActiveCourts);
+                if (deserializedCache != null)
+                {
+                    return deserializedCache;
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize active courts");
+            }
+        }
         var activeCourts = await _dbContext.Courts.Where(x => x.IsActive).ToListAsync(cancellationToken);
-
+        var serializedCourts = JsonSerializer.Serialize(activeCourts);
+        var options = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTLTime)
+        };
+        await _cache.SetStringAsync(CourtsActive, serializedCourts, options, cancellationToken);
         return activeCourts;
 
     }
@@ -148,7 +172,8 @@ public class CourtService
         search.IsActive = false;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-
+        await InvalidateCourtCacheAsync(CourtsAll, cancellationToken);
+        await InvalidateCourtCacheAsync(CourtsActive, cancellationToken);
         return new CourtResult
         {
             ErrorMessage = Error.none
@@ -177,7 +202,6 @@ public class CourtService
         }
 
         courtName = NormalizeString(courtName);
-        //findCourt = NormalizeString(findCourt);
 
         var databaseCourt = await _dbContext.Courts.FirstOrDefaultAsync(x => x.CourtName == findCourt, cancellationToken);
 
@@ -204,6 +228,8 @@ public class CourtService
             databaseCourt.Description = description;
             databaseCourt.IsActive = isActive;
             await _dbContext.SaveChangesAsync(cancellationToken);
+            await InvalidateCourtCacheAsync(CourtsAll, cancellationToken);
+            await InvalidateCourtCacheAsync(CourtsActive, cancellationToken);
 
             return new CourtResult
             {
@@ -225,11 +251,15 @@ public class CourtService
 
 
     }
-    
+
     private string NormalizeString(string courtName)
     {
         courtName = courtName.Trim().ToLowerInvariant();
         courtName = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(courtName);
         return courtName;
+    }
+    private async Task InvalidateCourtCacheAsync(string removeCache, CancellationToken cancellationToken)
+    {
+        await _cache.RemoveAsync(removeCache);
     }
 }

@@ -15,6 +15,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
     private DatabaseFixture _databaseFixture;
     private const string CourtsAll = "courts:all";
+    private const string CourtsActive = "courts:active";
 
     public CourtServiceTests(DatabaseFixture databaseFixture)
     {
@@ -33,15 +34,10 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourtTest()
     {
-        var dbContextService = new HelperUnit();
-        var dbContext = dbContextService.DbContextHellper();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
 
-        var service = new ServiceCollection();
-        service.AddDistributedMemoryCache();
-
-        var serviceProvider = service.BuildServiceProvider();
-
-        var cache = serviceProvider.GetRequiredService<IDistributedCache>();
+        var cache = helper.DistributedCache();
 
         var logger = NullLogger<CourtService>.Instance;
 
@@ -261,6 +257,72 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         var result = await service.ShowCourts(CancellationToken.None);
         var foundCourt = result.First(x => x.CourtName == courtName);
         Assert.Equal(courtName, foundCourt.CourtName);
+    }
+
+    [Fact]
+    public async Task CreateCourt_RemoveCacheAfterCreation()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<CourtService>.Instance;
+
+        var courtName = $"Court-{Guid.NewGuid()}";
+        var newCourt = helper.CreateNewCourt(courtName);
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        var json = JsonSerializer.Serialize(newCourt);
+        await cache.SetStringAsync(CourtsAll, json);
+        await cache.SetStringAsync(CourtsActive, json);
+        var cacheCourtsAll = await cache.GetStringAsync(CourtsAll);
+        var cacheActiveCourts = await cache.GetStringAsync(CourtsActive);
+        Assert.NotNull(cacheCourtsAll);
+        Assert.NotNull(cacheActiveCourts);
+        var service = new CourtService(dbContext, cache, logger);
+        var result = await service.CreateCourt($"Court-{Guid.NewGuid()}", "", CancellationToken.None);
+        var cacheAll = await cache.GetStringAsync(CourtsAll);
+        var cacheActive = await cache.GetStringAsync(CourtsActive);
+        Assert.Null(cacheAll);
+        Assert.Null(cacheActive);
+
+    }
+
+    [Fact]
+    public async Task ShowActiveCourts_CacheHit()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var courtName = $"Courts-{Guid.NewGuid()}";
+        var newCourt = helper.CreateNewCourt(courtName);
+
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        var logger = NullLogger<CourtService>.Instance;
+    
+        var courtNameCache = $"Courts-{Guid.NewGuid()}";
+        var newCourtCahce = helper.CreateNewCourt(courtNameCache);
+        var cacheCourts = new List<Court>
+        {
+            newCourtCahce
+        };
+
+
+        var json = JsonSerializer.Serialize(cacheCourts);
+        await cache.SetStringAsync(CourtsActive, json);
+
+        var cachedBeforeServiceCall = await cache.GetStringAsync(CourtsActive);
+        Assert.NotNull(cachedBeforeServiceCall);
+        var cacheForAllCourts = await cache.GetStringAsync(CourtsAll);
+        Assert.Null(cacheForAllCourts);
+
+        var service = new CourtService(dbContext, cache, logger);
+        var result = await service.ShowActiveCourts(CancellationToken.None);
+        var getCourt = result.First(x => x.CourtName == courtNameCache);
+
+        Assert.Equal(courtNameCache, getCourt.CourtName);
     }
 
 
