@@ -7,16 +7,23 @@ using BookingSystem.Api.Models.SystemModels;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Update.Internal;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace BookingSystem.Api.Services;
 
 public class CourtService
 {
+    private const string CourtsAll = "courts:all";
     private readonly AppDbContext _dbContext;
+    private readonly IDistributedCache _cache;
+    private readonly ILogger<CourtService> _logger;
 
-    public CourtService(AppDbContext dbContext)
+    public CourtService(AppDbContext dbContext, IDistributedCache cache, ILogger<CourtService> logger)
     {
         _dbContext = dbContext;
+        _cache = cache;
+        _logger = logger;
     }
     public async Task<CourtResult> CreateCourt(string courtName, string description, CancellationToken cancellationToken)
     {
@@ -74,7 +81,33 @@ public class CourtService
 
     public async Task<IEnumerable<Court>> ShowCourts(CancellationToken cancellationToken)
     {
-        return await _dbContext.Courts.ToListAsync(cancellationToken);
+
+        var cacheCourts = await _cache.GetStringAsync(CourtsAll, cancellationToken);
+        if (cacheCourts != null)
+        {
+            try
+            {
+                var deserializedCache = JsonSerializer.Deserialize<List<Court>>(cacheCourts);
+                if (deserializedCache != null)
+                {
+                    return deserializedCache;
+                }
+            }
+            catch(JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize cached courts");
+            }
+
+        }
+
+        var courts = await _dbContext.Courts.ToListAsync(cancellationToken);
+        var serializedCourts = JsonSerializer.Serialize(courts);
+        var options = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+        };
+        await _cache.SetStringAsync(CourtsAll, serializedCourts, options, cancellationToken);
+        return courts;
     }
 
     public async Task<IEnumerable<Court>> ShowActiveCourts(CancellationToken cancellationToken)

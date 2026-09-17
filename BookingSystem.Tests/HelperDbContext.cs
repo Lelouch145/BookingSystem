@@ -4,6 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BookingSystem.Tests;
 
@@ -50,6 +53,16 @@ public class HelperUnit
             Status = BookingStatus.Confirmed,
         };
         return booking;
+    }
+    public IDistributedCache DistributedCache()
+    {
+        var service = new ServiceCollection();
+        service.AddDistributedMemoryCache();
+
+        var serviceProvider = service.BuildServiceProvider();
+        var cache = serviceProvider.GetRequiredService<IDistributedCache>();
+
+        return cache;
     }
 
 

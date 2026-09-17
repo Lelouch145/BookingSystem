@@ -2,20 +2,50 @@ using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.Immutable;
 using System.Globalization;
+using System.Text.Json;
 
 namespace BookingSystem.Tests;
 
-public class CourtServiceTests
+public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
+    private DatabaseFixture _databaseFixture;
+    private const string CourtsAll = "courts:all";
+
+    public CourtServiceTests(DatabaseFixture databaseFixture)
+    {
+        _databaseFixture = databaseFixture;
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _databaseFixture.ResetDatabaseAsync();
+    }
+
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
     [Fact]
     public async Task CreateCourtTest()
     {
         var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper();
 
+        var service = new ServiceCollection();
+        service.AddDistributedMemoryCache();
 
-        var courtService = new CourtService(dbContext);
+        var serviceProvider = service.BuildServiceProvider();
+
+        var cache = serviceProvider.GetRequiredService<IDistributedCache>();
+
+        var logger = NullLogger<CourtService>.Instance;
+
+        var courtService = new CourtService(dbContext, cache, logger);
         var courtName = $"Court-{Guid.NewGuid()}";
 
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
@@ -32,10 +62,13 @@ public class CourtServiceTests
     [Fact]
     public async Task CreateCourtTestInvalidcourtName()
     {
-        var dbContextService = new HelperUnit();
-        var dbContext = dbContextService.DbContextHellper();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
 
-        var courtService = new CourtService(dbContext);
+        var logger = NullLogger<CourtService>.Instance;
+
+        var courtService = new CourtService(dbContext, cache, logger);
 
         var result = await courtService.CreateCourt("", "", CancellationToken.None);
 
@@ -46,14 +79,16 @@ public class CourtServiceTests
     [Fact]
     public async Task CreateCourtDuplicateTest()
     {
-        var dbContextService = new HelperUnit();
-        var dbContext = dbContextService.DbContextHellper();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
 
-        var courtService = new CourtService(dbContext);
+        var logger = NullLogger<CourtService>.Instance;
+
+        var courtService = new CourtService(dbContext, cache, logger);
 
         var courtName = $"Court-{Guid.NewGuid()}";
-        var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
-            .ToTitleCase(courtName.Trim().ToLowerInvariant());
+
         var courtServiceHelper = new HelperUnit();
 
         var newCourt = courtServiceHelper.CreateNewCourt(courtName);
@@ -68,8 +103,9 @@ public class CourtServiceTests
     [Fact]
     public async Task DisableCourtTest()
     {
-        var dbContextServices = new HelperUnit();
-        var dbContext = dbContextServices.DbContextHellper();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
@@ -81,7 +117,9 @@ public class CourtServiceTests
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
-        var courtService = new CourtService(dbContext);
+        var logger = NullLogger<CourtService>.Instance;
+
+        var courtService = new CourtService(dbContext, cache, logger);
 
         var result = await courtService.DisableCourt(normalizedCourtName, CancellationToken.None);
         var updateCourt = await dbContext.Courts.FirstAsync(x => x.Id == newCourt.Id);
@@ -92,12 +130,12 @@ public class CourtServiceTests
     [Fact]
     public async Task DisableCourtSearchNullTest()
     {
-        var dbContextServices = new HelperUnit();
-        var dbContext = dbContextServices.DbContextHellper();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
 
         var courtName = $"Court-{Guid.NewGuid()}";
-        var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
-            .ToTitleCase(courtName.Trim().ToLowerInvariant());
+
 
         var courtServiceHelper = new HelperUnit();
 
@@ -105,8 +143,9 @@ public class CourtServiceTests
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
+        var logger = NullLogger<CourtService>.Instance;
 
-        var courtService = new CourtService(dbContext);
+        var courtService = new CourtService(dbContext, cache, logger);
         var result = await courtService.DisableCourt("Random", CancellationToken.None);
 
         Assert.Equal(Error.CouldNotFindTheCourtInDataBase, result.ErrorMessage);
@@ -114,8 +153,9 @@ public class CourtServiceTests
     [Fact]
     public async Task UpdateCourtTest()
     {
-        var dbContextServices = new HelperUnit();
-        var dbContext = dbContextServices.DbContextHellper();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
@@ -124,13 +164,15 @@ public class CourtServiceTests
         var newCourtName = $"Court-{Guid.NewGuid()}";
         var newNormalizedCourtName = CultureInfo.InvariantCulture.TextInfo
             .ToTitleCase(newCourtName.Trim().ToLowerInvariant());
-        
+
+        var logger = NullLogger<CourtService>.Instance;
+
         var courtServiceHelper = new HelperUnit();
         var newCourt = courtServiceHelper.CreateNewCourt(courtName);
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
-        var courtService = new CourtService(dbContext);
+        var courtService = new CourtService(dbContext, cache, logger);
         var result = await courtService.UpdateCourt(newCourt.CourtName, newCourtName, "", true, CancellationToken.None);
 
         var databaseCourtName = await dbContext.Courts.FirstAsync(x => x.Id == newCourt.Id);
@@ -138,6 +180,87 @@ public class CourtServiceTests
         Assert.Equal(Error.none, result.ErrorMessage);
         Assert.Equal(newNormalizedCourtName, result.Courts.CourtName);
 
+    }
+    [Fact]
+    public async Task ShowCourts_CacheMiss()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var courtName = $"Court-{Guid.NewGuid()}";
+
+        var newCourt = helper.CreateNewCourt(courtName);
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        var logger = NullLogger<CourtService>.Instance;
+
+        var cached = await cache.GetStringAsync(CourtsAll);
+        Assert.Null(cached);
+
+        var service = new CourtService(dbContext, cache, logger);
+        var result = await service.ShowCourts(CancellationToken.None);
+        var cachedAfterResult = await cache.GetStringAsync(CourtsAll);
+        var findCourt = result.First(x => x.CourtName == courtName);
+        Assert.Equal(courtName, findCourt.CourtName);
+
+        Assert.NotNull(cachedAfterResult);
+    }
+
+    [Fact]
+    public async Task ShowCourts_CacheHit()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var courtName = $"Courts-{Guid.NewGuid()}";
+        var newCourt = helper.CreateNewCourt(courtName);
+
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        var logger = NullLogger<CourtService>.Instance;
+    
+        var courtNameCache = $"Courts-{Guid.NewGuid()}";
+        var newCourtCahce = helper.CreateNewCourt(courtNameCache);
+        var cacheCourts = new List<Court>
+        {
+            newCourtCahce
+        };
+
+
+        var json = JsonSerializer.Serialize(cacheCourts);
+        await cache.SetStringAsync(CourtsAll, json);
+
+        var cachedBeforeServiceCall = await cache.GetStringAsync(CourtsAll);
+        Assert.NotNull(cachedBeforeServiceCall);
+
+        var service = new CourtService(dbContext, cache, logger);
+        var result = await service.ShowCourts(CancellationToken.None);
+        var getCourt = result.First(x => x.CourtName == courtNameCache);
+
+        Assert.Equal(courtNameCache, getCourt.CourtName);
+    }
+
+    [Fact]
+    public async Task ShowCourts_NullCache_FallBackSqlServer()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<CourtService>.Instance;
+
+        var courtName = $"Court-{Guid.NewGuid()}";
+        var newCourt = helper.CreateNewCourt(courtName);
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        await cache.SetStringAsync(CourtsAll, "this-is-not-json");
+
+        var service = new CourtService(dbContext, cache, logger);
+        var result = await service.ShowCourts(CancellationToken.None);
+        var foundCourt = result.First(x => x.CourtName == courtName);
+        Assert.Equal(courtName, foundCourt.CourtName);
     }
 
 

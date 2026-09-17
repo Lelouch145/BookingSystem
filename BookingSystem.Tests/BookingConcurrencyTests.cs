@@ -30,16 +30,6 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     }
 
     [Fact]
-    public async Task ResetDatabase()
-    {
-        var dbContextService = new HelperUnit();
-        var dbContext = dbContextService.DbContextHellper(); 
-
-        await dbContext.Database.EnsureDeletedAsync();
-        await dbContext.Database.MigrateAsync();
-    }
-
-    [Fact]
     public async Task TransactionTest()
     {
 

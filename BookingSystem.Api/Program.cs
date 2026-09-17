@@ -15,6 +15,7 @@ using Microsoft.OpenApi.Models;
 using System.Runtime.InteropServices.Marshalling;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -58,6 +59,10 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
 builder.Services.Configure<IdentityOptions>(options =>
 {
     options.User.RequireUniqueEmail = true;
+});
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = "Connectionstring";
 });
 builder.Services.AddScoped<CourtService>();
 builder.Services.AddScoped<RegisterService>();
