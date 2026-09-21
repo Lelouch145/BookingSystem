@@ -98,7 +98,7 @@ public class CourtService
             }
             catch(JsonException ex)
             {
-                _logger.LogError(ex, "Failed to deserialize cached courts");
+                _logger.LogWarning(ex, "Failed to deserialize cached courts");
             }
 
         }

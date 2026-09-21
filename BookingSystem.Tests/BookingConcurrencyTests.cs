@@ -4,6 +4,7 @@ using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualBasic;
 using Xunit.Sdk;
 
@@ -34,11 +35,12 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     {
 
 
-        var dbContextService = new HelperUnit();
-        var dbContext = dbContextService.DbContextHellper(); 
-        var secondDbContext = dbContextService.DbContextHellper();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper(); 
+        var secondDbContext = helper.DbContextHellper();
 
-        await dbContext.Database.MigrateAsync();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger.Instance;
 
         BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
         BookingTimeService bookingTimeServiceSecond = new BookingTimeService(secondDbContext);
@@ -62,8 +64,8 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         };
         dbContext.Users.AddRange(testUser, testUser2);
         await dbContext.SaveChangesAsync();
-        BookingService bookingService = new BookingService(dbContext, bookingTimeService);
-        BookingService secondBookingService = new BookingService(secondDbContext, bookingTimeServiceSecond);
+        BookingService bookingService = new BookingService(dbContext, bookingTimeService, cache, logger);
+        BookingService secondBookingService = new BookingService(secondDbContext, bookingTimeServiceSecond, cache, logger);
         var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
         var CreateBooking = bookingService.CreateBooking(newCourt.Id, startTime, 60, testUser.Id, CancellationToken.None);
         var secondCreateBooking = secondBookingService.CreateBooking(newCourt.Id, startTime, 60, testUser2.Id, CancellationToken.None);
@@ -88,8 +90,6 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         var dbContext = dbContextService.DbContextHellper();
         var secondDbContext = dbContextService.DbContextHellper();
    
-
-        await dbContext.Database.MigrateAsync();
 
         Court newCourt = new Court
         {
@@ -131,11 +131,12 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task CancelBookingConcurrency()
     {
-        var dbContextService = new HelperUnit();
-        var dbContext = dbContextService.DbContextHellper();
-        var secondDbContext = dbContextService.DbContextHellper();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var secondDbContext = helper.DbContextHellper();
 
-        await dbContext.Database.MigrateAsync();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger.Instance;
 
         BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
         Court newCourt = new Court
@@ -164,8 +165,8 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext, bookingTimeService);
-        var secondService = new BookingService(secondDbContext, bookingTimeService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger);
+        var secondService = new BookingService(secondDbContext, bookingTimeService, cache, logger);
         var bookingB = await secondDbContext.Bookings.FirstAsync(x => x.Id == newBooking.Id);
         var firstTask = service.CancelBooking(newUser.Id, newBooking.Id, CancellationToken.None, false);
         var secondTask = secondService.CancelBooking(newUser.Id, newBooking.Id, CancellationToken.None, false);
@@ -186,11 +187,11 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task RescheduleBookingConcurrency()
     {
-        var dbContextService = new HelperUnit();
-        var dbContext = dbContextService.DbContextHellper();
-        var secondDbContext = dbContextService.DbContextHellper();
-
-        await dbContext.Database.MigrateAsync();
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var secondDbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger.Instance;
 
         BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
         BookingTimeService bookingTimeServiceSecond = new BookingTimeService(secondDbContext);
@@ -221,8 +222,8 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext, bookingTimeService);
-        var secondService = new BookingService(secondDbContext, bookingTimeServiceSecond);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger);
+        var secondService = new BookingService(secondDbContext, bookingTimeServiceSecond, cache, logger);
         var newStartTime = DateTime.Now.Date.AddDays(3).AddHours(15).AddMinutes(30);
 
         var bookingB = await secondDbContext.Bookings.FirstAsync(x => x.Id == newBooking.Id);

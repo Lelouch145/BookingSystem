@@ -9,18 +9,27 @@ using Microsoft.AspNetCore.Identity;
 using System.ComponentModel;
 using Microsoft.Data.SqlClient;
 using System.Data;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace BookingSystem.Api.Services;
 
 public class BookingService
 {
+    private const string BookingsAll = "bookings:all";
+    private const string BookingsUser = "bookings:user:";
+    private const int TTL = 5;
     private readonly AppDbContext _dbContext;
     private readonly BookingTimeService _bookingTimeService;
+    private readonly IDistributedCache _cache;
+    private readonly ILogger _logger;
 
-    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService)
+    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService, IDistributedCache cache, ILogger logger)
     {
         _dbContext = dbContext;
         _bookingTimeService = bookingTimeService;
+        _cache = cache;
+        _logger = logger;
 
     }
 
@@ -116,25 +125,96 @@ public class BookingService
             ClientBooking = bookingClient,
             ErrorMessage = Error.none
         };
+
+        await _cache.RemoveAsync(BookingsAll);
+        await _cache.RemoveAsync($"{BookingsUser}{booking.UserId}");
         return result;
 
     }
 
 
-    public async Task<IEnumerable<Booking>> GetUserBookings(string userId, CancellationToken cancellationToken)
+    public async Task<IEnumerable<BookingDto>> GetUserBookings(string userId, CancellationToken cancellationToken)
     {
+        var cache = await _cache.GetStringAsync($"{BookingsUser}{userId}",cancellationToken);
+        if(cache != null)
+        {
+            try
+            {
+                var json = JsonSerializer.Deserialize<List<BookingDto>>(cache);
+                if(json != null)
+                {
+                    return json;
+                }
+            }
+            catch(JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to deserialize json for bookings");
+            }
+        }
+
         var showBooking = await _dbContext.Bookings.Where(x => x.UserId == userId).
         OrderBy(x => x.StartTime).ToListAsync(cancellationToken);
+        var bookingsReturn = showBooking.Select(x => new BookingDto
+        {
+            Id = x.Id,
+            CourtId = x.CourtId,
+            UserId = x.UserId,
+            StartTime = x.StartTime,
+            EndTime = x.EndTime,
+            Status = x.Status,
+            CreatedAt = x.CreatedAt
+        }).ToList();
 
-        return showBooking;
+        var bookingSerialize = JsonSerializer.Serialize(bookingsReturn);
+        var options = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTL)
+        };
+        await _cache.SetStringAsync($"{BookingsUser}{userId}", bookingSerialize, options, cancellationToken);
+
+        return bookingsReturn;
     }
 
-    public async Task<IEnumerable<Booking>> GetAllBookings(CancellationToken cancellationToken)
+    public async Task<IEnumerable<BookingDto>> GetAllBookings(CancellationToken cancellationToken)
     {
+        var cache = await _cache.GetStringAsync(BookingsAll);
+        if(cache != null)
+        {
+            try
+            {
+                var json = JsonSerializer.Deserialize<List<BookingDto>>(cache);
+                if(json != null)
+                {
+                    return json;
+                }   
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to deserialize json for all bookings");
+            }
+        }
+
         var allBookings = await _dbContext.Bookings.OrderBy(x => x.StartTime)
         .ToListAsync(cancellationToken);
+        var bookingsReturn = allBookings.Select(x => new BookingDto
+        {
+            Id = x.Id,
+            CourtId = x.CourtId,
+            UserId = x.UserId,
+            StartTime = x.StartTime,
+            EndTime = x.EndTime,
+            Status = x.Status,
+            CreatedAt = x.CreatedAt   
+        }).ToList();
+        var serializedCourts = JsonSerializer.Serialize(bookingsReturn);
 
-        return allBookings;
+        var options = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTL)
+        };
+        await _cache.SetStringAsync(BookingsAll, serializedCourts, options);
+
+        return bookingsReturn;
     }
 
     public async Task<CancelBookingOrUpdate> CancelBooking(string userId, int bookingId, CancellationToken cancellationToken, bool isAdmin)
@@ -203,6 +283,8 @@ public class BookingService
             };
         }
 
+        await _cache.RemoveAsync(BookingsAll);
+        await _cache.RemoveAsync($"{BookingsUser}{findBooking.UserId}");
         return new CancelBookingOrUpdate
         {
             Success = true
@@ -308,6 +390,8 @@ public class BookingService
             throw;
         }
 
+        await _cache.RemoveAsync(BookingsAll);
+        await _cache.RemoveAsync($"{BookingsUser}{findBooking.UserId}");
         return new CancelBookingOrUpdate
         {
             Success = true
