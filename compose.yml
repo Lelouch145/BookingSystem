@@ -1,0 +1,24 @@
+services:
+  sqlserver: 
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: bookingsystem-sql
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+    volumes:
+      - sql_data:/var/opt/mssql
+
+
+  redis:
+    image: redis:8
+    container_name: bookingsystem-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  sql_data:
+    external: true
+    name: bookingsystem-sql-data
