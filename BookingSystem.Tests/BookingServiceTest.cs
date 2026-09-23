@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Threading.Tasks;
+using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -347,7 +348,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     }
 
     [Fact]
-    public async Task GetAllBookings_CacheDeleteConfirm()
+    public async Task CreateBooking_CacheDeleteConfirm()
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
@@ -401,29 +402,29 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
 
-        var cacheBooking = new Booking
+        var cacheBooking = new BookingDto
         {
-            Id = 99,
+            Id = newBooking.Id,
             CourtId = newCourt.Id,
-            UserId = "20",
-            StartTime = DateTime.UtcNow.AddDays(4).AddHours(15),
-            EndTime = DateTime.UtcNow.AddDays(4).AddHours(16),
-            Status = BookingStatus.Confirmed,
-            CreatedAt = DateTime.UtcNow
+            UserId = newUser.Id,
+            StartTime = newBooking.StartTime,
+            EndTime = newBooking.EndTime,
+            Status = newBooking.Status,
+            CreatedAt = newBooking.CreatedAt
         };
-        var cacheBookingList = new List<Booking>
+        var cacheBookingList = new List<BookingDto>
         {
             cacheBooking
         };
-        var json = JsonSerializer.Serialize<List<Booking>>(cacheBookingList);
-        await cache.SetStringAsync($"{BookingsUser}{99}", json);
+        var json = JsonSerializer.Serialize<List<BookingDto>>(cacheBookingList);
+        await cache.SetStringAsync($"{BookingsUser}{newUser.Id}", json);
         
         var service = new BookingService(dbContext, bookingTimeService, cache, logger);
 
-        var result = await service.GetUserBookings("99", CancellationToken.None);
-        var resultResponse = result.First(x => x.Id == 99);
-        var cacheGet = await cache.GetStringAsync($"{BookingsUser}{99}");
-        Assert.Equal(99, resultResponse.Id);
+        var result = await service.GetUserBookings(newUser.Id, CancellationToken.None);
+        var resultResponse = result.First(x => x.Id == newBooking.Id);
+        var cacheGet = await cache.GetStringAsync($"{BookingsUser}{newUser.Id}");
+        Assert.Equal(newBooking.Id, resultResponse.Id);
         Assert.Equal(newCourt.Id, resultResponse.CourtId);
         Assert.NotNull(cacheGet);
         
@@ -454,10 +455,129 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
 
         var result = await service.GetUserBookings(newUser.Id, CancellationToken.None);
         var resultResponse = result.First(x => x.CourtId == newCourt.Id);
-        //var cacheGet = await cache.GetStringAsync($"{BookingsUser}{newUser.Id}");
+        var cacheGet = await cache.GetStringAsync($"{BookingsUser}{newUser.Id}");
+        Assert.NotNull(cacheGet);
+        var cacheDeserialize = JsonSerializer.Deserialize<List<BookingDto>>(cacheGet!); 
+        Assert.NotNull(cacheDeserialize);
+        var test = cacheDeserialize.First(x => x.UserId == newUser.Id);
         Assert.Equal(newUser.Id, resultResponse.UserId);
+        Assert.Equal(newCourt.Id, test.CourtId);
+
+    }
+
+    [Fact]
+    public async Task GetAllBookings_CacheHit()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger.Instance;
+        var bookingTimeService = new BookingTimeService(dbContext);
+
+        var newUser = helper.CreateNewUser();
+        dbContext.Users.Add(newUser);
+        var newCourt = helper.CreateNewCourt($"Court-{Guid.NewGuid()}");
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        var newBooking = helper.NewBooking(newCourt.Id, newUser.Id);
+        dbContext.Bookings.Add(newBooking);
+        await dbContext.SaveChangesAsync();
+
+        var cacheBooking = new BookingDto
+        {
+            Id = newBooking.Id,
+            CourtId = newCourt.Id,
+            UserId = newBooking.UserId,
+            StartTime = newBooking.StartTime,
+            EndTime = newBooking.EndTime,
+            Status = newBooking.Status,
+            CreatedAt = newBooking.CreatedAt
+        };
+        var cacheBookingList = new List<BookingDto>
+        {
+            cacheBooking
+        };
+        var json = JsonSerializer.Serialize<List<BookingDto>>(cacheBookingList);
+        await cache.SetStringAsync(BookingsAll, json);
+        
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger);
+
+        var result = await service.GetAllBookings(CancellationToken.None);
+        var resultResponse = result.First(x => x.Id == newBooking.Id);
+        var cacheGet = await cache.GetStringAsync(BookingsAll);
+        Assert.Equal(newBooking.Id, resultResponse.Id);
+        Assert.Equal(newCourt.Id, resultResponse.CourtId);
+        Assert.NotNull(cacheGet);
         
         
 
+    }
+
+    [Fact]
+    public async Task GetAllBookings_CacheMiss()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger.Instance;
+        var bookingTimeService = new BookingTimeService(dbContext);
+
+        var newUser = helper.CreateNewUser();
+        dbContext.Users.Add(newUser);
+        var newCourt = helper.CreateNewCourt($"Court-{Guid.NewGuid()}");
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        var newBooking = helper.NewBooking(newCourt.Id, newUser.Id);
+        dbContext.Bookings.Add(newBooking);
+        await dbContext.SaveChangesAsync();
+        
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger);
+
+        var result = await service.GetAllBookings(CancellationToken.None);
+        var resultResponse = result.First(x => x.CourtId == newCourt.Id);
+        var cacheGet = await cache.GetStringAsync(BookingsAll);
+        Assert.NotNull(cacheGet);
+        var cacheDeserialize = JsonSerializer.Deserialize<List<BookingDto>>(cacheGet!); 
+        Assert.NotNull(cacheDeserialize);
+        var test = cacheDeserialize.First(x => x.UserId == newUser.Id);
+        Assert.Equal(newUser.Id, resultResponse.UserId);
+        Assert.Equal(newCourt.Id, test.CourtId);
+    }
+
+    [Fact]
+    public async Task CancelBooking_CacheUserDelte_AdminIsDeleting()
+    {
+        var helper = new HelperUnit();
+        var cache = helper.DistributedCache();
+        var dbContext = helper.DbContextHellper();
+        var logger = NullLogger.Instance;
+        var bookingTimeService = new BookingTimeService(dbContext);
+
+        var newUser = helper.CreateNewUser();
+        dbContext.Users.Add(newUser);
+        var newCourt = helper.CreateNewCourt($"Court-{Guid.NewGuid()}");
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        var newBooking = helper.NewBooking(newCourt.Id, newUser.Id);
+        dbContext.Bookings.Add(newBooking);
+        await dbContext.SaveChangesAsync();
+        await cache.SetStringAsync(BookingsAll, "Test-CacheAll");
+        await cache.SetStringAsync($"{BookingsUser}{newUser.Id}", "Test-CacheUser");
+
+        var cacheAllBeforeResult = await cache.GetStringAsync(BookingsAll);
+        Assert.NotNull(cacheAllBeforeResult);
+        var cacheUserBeforeResult = await cache.GetStringAsync($"{BookingsUser}{newUser.Id}");
+        Assert.NotNull(cacheUserBeforeResult);
+
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger);
+        var result = await service.CancelBooking(newUser.Id, newBooking.Id, CancellationToken.None, true);
+
+        var cacheDeleteConfirmAll = await cache.GetStringAsync(BookingsAll);
+        Assert.Null(cacheDeleteConfirmAll);
+        var cacheDeleteConfirmUser = await cache.GetStringAsync($"{BookingsUser}{newUser.Id}");
+        Assert.Null(cacheDeleteConfirmUser);
     }
 }
