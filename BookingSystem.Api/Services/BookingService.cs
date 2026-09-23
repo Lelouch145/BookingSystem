@@ -11,6 +11,7 @@ using Microsoft.Data.SqlClient;
 using System.Data;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
+using StackExchange.Redis;
 
 namespace BookingSystem.Api.Services;
 
@@ -126,8 +127,8 @@ public class BookingService
             ErrorMessage = Error.none
         };
 
-        await _cache.RemoveAsync(BookingsAll);
-        await _cache.RemoveAsync($"{BookingsUser}{booking.UserId}");
+        await RemoveCacheHelperAsync(BookingsAll, cancellationToken);
+        await RemoveCacheHelperAsync($"{BookingsUser}{booking.UserId}", cancellationToken);
         return result;
 
     }
@@ -135,7 +136,24 @@ public class BookingService
 
     public async Task<IEnumerable<BookingDto>> GetUserBookings(string userId, CancellationToken cancellationToken)
     {
-        var cache = await _cache.GetStringAsync($"{BookingsUser}{userId}",cancellationToken);
+        bool redisAvailable = true;
+        string? cache = null;
+        try
+        {
+            cache = await _cache.GetStringAsync($"{BookingsUser}{userId}",cancellationToken);
+
+        }
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+            redisAvailable = false;
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            redisAvailable = false;
+        }
+
         if(cache != null)
         {
             try
@@ -170,14 +188,44 @@ public class BookingService
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTL)
         };
-        await _cache.SetStringAsync($"{BookingsUser}{userId}", bookingSerialize, options, cancellationToken);
-
+        if (redisAvailable)
+        {
+            try
+            {
+                await _cache.SetStringAsync($"{BookingsUser}{userId}", bookingSerialize, options, cancellationToken);
+            }
+            catch(RedisConnectionException ex)
+            {
+                _logger.LogWarning(ex, "Redis is down");
+            }
+            catch(RedisTimeoutException ex)
+            {
+                _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            }
+        }
+        
         return bookingsReturn;
     }
 
     public async Task<IEnumerable<BookingDto>> GetAllBookings(CancellationToken cancellationToken)
     {
-        var cache = await _cache.GetStringAsync(BookingsAll);
+        string? cache = null;
+        bool redisAvailable = true;
+
+        try
+        {
+            cache = await _cache.GetStringAsync(BookingsAll);
+        }
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+            redisAvailable = false;
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            redisAvailable = false;
+        }
         if(cache != null)
         {
             try
@@ -212,7 +260,22 @@ public class BookingService
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTL)
         };
-        await _cache.SetStringAsync(BookingsAll, serializedCourts, options);
+        if (redisAvailable)
+        {
+            try
+            {
+                await _cache.SetStringAsync(BookingsAll, serializedCourts, options);
+            }
+            catch(RedisConnectionException ex)
+            {
+                _logger.LogWarning(ex, "Redis is down");
+            }
+            catch(RedisTimeoutException ex)
+            {
+                _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            }
+        }
+
 
         return bookingsReturn;
     }
@@ -283,8 +346,8 @@ public class BookingService
             };
         }
 
-        await _cache.RemoveAsync(BookingsAll);
-        await _cache.RemoveAsync($"{BookingsUser}{findBooking.UserId}");
+        await RemoveCacheHelperAsync(BookingsAll, cancellationToken);
+        await RemoveCacheHelperAsync($"{BookingsUser}{findBooking.UserId}", cancellationToken);
         return new CancelBookingOrUpdate
         {
             Success = true
@@ -390,8 +453,8 @@ public class BookingService
             throw;
         }
 
-        await _cache.RemoveAsync(BookingsAll);
-        await _cache.RemoveAsync($"{BookingsUser}{findBooking.UserId}");
+        await RemoveCacheHelperAsync(BookingsAll, cancellationToken);
+        await RemoveCacheHelperAsync($"{BookingsUser}{findBooking.UserId}", cancellationToken);
         return new CancelBookingOrUpdate
         {
             Success = true
@@ -418,6 +481,22 @@ public class BookingService
             bookingSlots.Add(newBookingSlot);
         }
         return bookingSlots;
+    }
+
+    private async Task RemoveCacheHelperAsync(string cacheKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _cache.RemoveAsync(cacheKey, cancellationToken);
+        }
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+        }
     }
     
 

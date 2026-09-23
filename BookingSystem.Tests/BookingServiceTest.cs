@@ -580,4 +580,62 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var cacheDeleteConfirmUser = await cache.GetStringAsync($"{BookingsUser}{newUser.Id}");
         Assert.Null(cacheDeleteConfirmUser);
     }
+
+    [Fact]
+    public async Task GetUserBookings_RedisDown()
+    {
+        var helper = new HelperUnit();
+        var cache = new FakeDistributedCache();
+        var dbContext = helper.DbContextHellper();
+        var logger = NullLogger.Instance;
+        var bookingTimeService = new BookingTimeService(dbContext);
+
+        var newUser = helper.CreateNewUser();
+        dbContext.Users.Add(newUser);
+        var newCourt = helper.CreateNewCourt($"Court-{Guid.NewGuid()}");
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+
+        var newBooking = helper.NewBooking(newCourt.Id, newUser.Id);
+        dbContext.Bookings.Add(newBooking);
+        await dbContext.SaveChangesAsync();
+
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger);
+
+        var result = await service.GetUserBookings(newUser.Id, CancellationToken.None);
+        var findBooking = result.First(x => x.UserId == newUser.Id);
+
+        Assert.Equal(newUser.Id, findBooking.UserId);
+        Assert.Equal(newCourt.Id, findBooking.CourtId);
+
+    }
+
+    [Fact]
+    public async Task CreateBooking_RedisDown()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = new FakeDistributedCache();
+        var logger = NullLogger.Instance;
+        
+        var courtName = $"Court-{Guid.NewGuid()}";
+        var newCourt = helper.CreateNewCourt(courtName);
+        dbContext.Courts.Add(newCourt);
+        var newUser = helper.CreateNewUser();
+        dbContext.Users.Add(newUser);
+        await dbContext.SaveChangesAsync();
+
+        var bookingTimeService = new BookingTimeService(dbContext);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger);
+
+        var startTime = DateTime.UtcNow.Date.AddDays(2).AddHours(18);
+
+        var result = await bookingService.CreateBooking(newCourt.Id, startTime, 60, newUser.Id, CancellationToken.None);
+        var databaseSave = dbContext.Bookings.First(x => x.CourtId == newCourt.Id);
+        Assert.True(result.Success);
+        Assert.Equal(Error.none, result.ErrorMessage);
+        Assert.Equal(newUser.Id, databaseSave.UserId);
+
+
+    }
 }
