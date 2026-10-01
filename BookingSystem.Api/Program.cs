@@ -46,7 +46,12 @@ builder.Services.AddSwaggerGen(options =>
             },
             Array.Empty<string>()
         }
-});
+    });
+    options.MapType<DateOnly>(() => new OpenApiSchema
+    {
+       Type = "string",
+       Format = "date" 
+    }); 
 });
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string"
@@ -60,9 +65,13 @@ builder.Services.Configure<IdentityOptions>(options =>
 {
     options.User.RequireUniqueEmail = true;
 });
+
+var redisConnectionString = builder.Configuration.GetConnectionString("redis")
+    ?? throw new InvalidOperationException("redis connection string not found");
+
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = "Connectionstring";
+    options.Configuration = "redisConnectionString";
 });
 builder.Services.AddScoped<CourtService>();
 builder.Services.AddScoped<RegisterService>();
@@ -73,6 +82,7 @@ builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<BookingCompletionService>();
 builder.Services.AddHostedService<BookingCompletionBackgroundService>();
 builder.Services.AddScoped<BookingTimeService>();
+builder.Services.AddScoped<AvailabilityService>();
 var jwtKey = builder.Configuration["JWT:KEY"]
     ?? throw new InvalidOperationException("JWT key is missing");
 
@@ -168,11 +178,17 @@ app.MapGet("Courts/ShowCourts", (CourtService showCourt, ClaimsPrincipal user, C
 
 }).RequireAuthorization();
 
-app.MapGet("/test-auth", () =>
+app.MapGet("Courts/Schedule", async (AvailabilityService scheduleService, CancellationToken cancellationToken, DateOnly date, int duration, int courtId) =>
 {
-    return Results.Ok("Du är authat");
-})
-.RequireAuthorization();
+    var service = await scheduleService.AvailabilitySchedule(date, duration, courtId, cancellationToken);
+    if(service.ErrorMessage != Error.none)
+    {
+        return Results.BadRequest(service.ErrorMessage);
+    }
+    var result = service.Times;
+
+    return Results.Ok(result);
+}).RequireAuthorization();
 
 
 app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, string courtName, CancellationToken cancellationToken) =>

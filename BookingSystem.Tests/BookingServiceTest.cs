@@ -40,7 +40,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var bookingTimeService = new BookingTimeService(dbContext);
 
@@ -71,7 +71,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var bookingTimeService = new BookingTimeService(dbContext);
 
@@ -113,7 +113,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var dbContext = helper.DbContextHellper();
         var bookingTimeService = new BookingTimeService(dbContext);
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var newCourtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(newCourtName);
@@ -151,7 +151,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var dbContext = helper.DbContextHellper();
         var bookingTimeService = new BookingTimeService(dbContext);
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var newCourtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(newCourtName);
@@ -172,7 +172,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var bookingTimeService = new BookingTimeService(dbContext);
 
@@ -208,7 +208,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var bookingTimeService = new BookingTimeService(dbContext);
 
@@ -246,7 +246,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var bookingTimeService = new BookingTimeService(dbContext);
 
@@ -284,7 +284,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var bookingTimeService = new BookingTimeService(dbContext);
 
@@ -322,7 +322,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         var bookingTimeService = new BookingTimeService(dbContext);
 
@@ -353,7 +353,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
         
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -389,7 +389,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
         var bookingTimeService = new BookingTimeService(dbContext);
 
         var newUser = helper.CreateNewUser();
@@ -438,7 +438,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
         var bookingTimeService = new BookingTimeService(dbContext);
 
         var newUser = helper.CreateNewUser();
@@ -471,7 +471,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
         var bookingTimeService = new BookingTimeService(dbContext);
 
         var newUser = helper.CreateNewUser();
@@ -520,7 +520,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
         var bookingTimeService = new BookingTimeService(dbContext);
 
         var newUser = helper.CreateNewUser();
@@ -552,7 +552,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var cache = helper.DistributedCache();
         var dbContext = helper.DbContextHellper();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
         var bookingTimeService = new BookingTimeService(dbContext);
 
         var newUser = helper.CreateNewUser();
@@ -587,7 +587,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var cache = new FakeDistributedCache();
         var dbContext = helper.DbContextHellper();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
         var bookingTimeService = new BookingTimeService(dbContext);
 
         var newUser = helper.CreateNewUser();
@@ -616,7 +616,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = new FakeDistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
         
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);

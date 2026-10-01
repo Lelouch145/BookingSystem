@@ -40,7 +40,7 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         var secondDbContext = helper.DbContextHellper();
 
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
         BookingTimeService bookingTimeServiceSecond = new BookingTimeService(secondDbContext);
@@ -136,7 +136,7 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         var secondDbContext = helper.DbContextHellper();
 
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
         Court newCourt = new Court
@@ -191,7 +191,7 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         var dbContext = helper.DbContextHellper();
         var secondDbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
-        var logger = NullLogger.Instance;
+        var logger = NullLogger<BookingService>.Instance;
 
         BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
         BookingTimeService bookingTimeServiceSecond = new BookingTimeService(secondDbContext);

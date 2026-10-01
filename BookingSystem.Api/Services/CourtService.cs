@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Update.Internal;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
+using StackExchange.Redis;
 
 namespace BookingSystem.Api.Services;
 
@@ -84,8 +85,20 @@ public class CourtService
 
     public async Task<IEnumerable<Court>> ShowCourts(CancellationToken cancellationToken)
     {
+        string? cacheCourts = null;
+        try
+        {
+            cacheCourts = await _cache.GetStringAsync(CourtsAll, cancellationToken);
+        }
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
 
-        var cacheCourts = await _cache.GetStringAsync(CourtsAll, cancellationToken);
+        }
         if (cacheCourts != null)
         {
             try
@@ -109,13 +122,38 @@ public class CourtService
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTLTime)
         };
-        await _cache.SetStringAsync(CourtsAll, serializedCourts, options, cancellationToken);
+        try
+        {
+            await _cache.SetStringAsync(CourtsAll, serializedCourts, options, cancellationToken);
+        }
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+        }
         return courts;
     }
 
     public async Task<IEnumerable<Court>> ShowActiveCourts(CancellationToken cancellationToken)
     {
-        var cacheActiveCourts = await _cache.GetStringAsync(CourtsActive, cancellationToken);
+        string? cacheActiveCourts = null;
+        try
+        {
+            cacheActiveCourts = await _cache.GetStringAsync(CourtsActive, cancellationToken);
+        }        
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+
+        }
+
         if (cacheActiveCourts != null)
         {
             try
@@ -137,7 +175,19 @@ public class CourtService
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTLTime)
         };
-        await _cache.SetStringAsync(CourtsActive, serializedCourts, options, cancellationToken);
+        try
+        {
+            
+            await _cache.SetStringAsync(CourtsActive, serializedCourts, options, cancellationToken);
+        }
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+        }
         return activeCourts;
 
     }
@@ -260,6 +310,18 @@ public class CourtService
     }
     private async Task InvalidateCourtCacheAsync(string removeCache, CancellationToken cancellationToken)
     {
-        await _cache.RemoveAsync(removeCache);
+        try
+        {
+            await _cache.RemoveAsync(removeCache);
+        }
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+        }
+        
     }
 }

@@ -23,9 +23,9 @@ public class BookingService
     private readonly AppDbContext _dbContext;
     private readonly BookingTimeService _bookingTimeService;
     private readonly IDistributedCache _cache;
-    private readonly ILogger _logger;
+    private readonly ILogger<BookingService> _logger;
 
-    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService, IDistributedCache cache, ILogger logger)
+    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService, IDistributedCache cache, ILogger<BookingService> logger)
     {
         _dbContext = dbContext;
         _bookingTimeService = bookingTimeService;

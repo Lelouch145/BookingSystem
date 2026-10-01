@@ -74,10 +74,7 @@ public class BookingTimeService
         if (checkAvailability.ErrorMessage == Error.InvalidDuration ||
             checkAvailability.ErrorMessage == Error.BookingCannotBeInThePast)
         {
-
-
             return checkAvailability.ErrorMessage;
-
         }
         var times = checkAvailability.Times.Any(x => x == startTime);
         if (!times)
