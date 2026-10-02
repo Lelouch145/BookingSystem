@@ -54,6 +54,15 @@ public class HelperUnit
         };
         return booking;
     }
+
+    public async Task<Court> CreateCourtAndSaveDatabase(AppDbContext dbContext, string courtName)
+    {
+        var newCourt = CreateNewCourt(courtName);
+        dbContext.Courts.Add(newCourt);
+        await dbContext.SaveChangesAsync();
+        return newCourt;
+    }
+
     public IDistributedCache DistributedCache()
     {
         var service = new ServiceCollection();
@@ -63,6 +72,27 @@ public class HelperUnit
         var cache = serviceProvider.GetRequiredService<IDistributedCache>();
 
         return cache;
+    }
+
+    public Booking NewBookingWithSlots(int newCourtId, string newUserId)
+    {
+        var booking = NewBooking(newCourtId, newUserId);
+
+        var slotCount = 60 / 30;
+        List<BookingSlot> bookingSlots = new List<BookingSlot>();
+
+        for (int i = 0; i < slotCount; i++)
+        {
+            var slotStartTime = booking.StartTime.AddMinutes(i * 30);
+            BookingSlot newBookingSlot = new BookingSlot
+            {
+                CourtId = newCourtId,
+                SlotStart = slotStartTime
+            };
+            bookingSlots.Add(newBookingSlot);
+        }
+        booking.BookingSlots = bookingSlots;
+        return booking;
     }
 
 
