@@ -3,7 +3,9 @@ using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualBasic;
 using Xunit.Sdk;
@@ -33,17 +35,7 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task TransactionTest()
     {
-
-
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper(); 
-        var secondDbContext = helper.DbContextHellper();
-
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
-        BookingTimeService bookingTimeServiceSecond = new BookingTimeService(secondDbContext);
+        var (helper, dbContext, secondDbContext, cache, logger, bookingTimeService, bookingTimeServiceSecond) = CreateSetup();
 
         Court newCourt = new Court
         {
@@ -131,14 +123,7 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task CancelBookingConcurrency()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var secondDbContext = helper.DbContextHellper();
-
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, secondDbContext, cache, logger, bookingTimeService, _) = CreateSetup();
         Court newCourt = new Court
         {
             CourtName = $"Court-{Guid.NewGuid()}",
@@ -187,14 +172,7 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task RescheduleBookingConcurrency()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var secondDbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        BookingTimeService bookingTimeService = new BookingTimeService(dbContext);
-        BookingTimeService bookingTimeServiceSecond = new BookingTimeService(secondDbContext);
+        var (helper, dbContext, secondDbContext, cache, logger, bookingTimeService, bookingTimeServiceSecond) = CreateSetup();
 
         Court newCourt = new Court
         {
@@ -245,6 +223,19 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         Assert.NotNull(errorcode);
         Assert.Equal(Error.BookingWasModifiedByAnotherRequest, errorcode.ErrorMessage);
 
+    }
+
+    private(HelperUnit helperUnit, AppDbContext dbContext, AppDbContext secondDbContext, IDistributedCache cache, ILogger<BookingService> logger, BookingTimeService bookingTimeService, BookingTimeService bookingTimeServiceSecond) CreateSetup()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var secondDbContext = helper.DbContextHellper();
+        var cache = new FakeDistributedCache();
+        var logger = NullLogger<BookingService>.Instance;
+        var bookingTimeService = new BookingTimeService(dbContext);
+        var bookingTimeServiceSecond = new BookingTimeService(secondDbContext);
+
+        return(helper, dbContext, secondDbContext, cache, logger, bookingTimeService, bookingTimeServiceSecond);
     }
 
 

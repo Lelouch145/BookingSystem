@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Threading.Tasks;
+using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
@@ -37,12 +38,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CreateBookingTest()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
 
         var courtName = $"Court{Guid.NewGuid()}";
@@ -68,12 +64,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBookingTest()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -109,11 +100,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
 
     public async Task RescheduleBooking()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var bookingTimeService = new BookingTimeService(dbContext);
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var newCourtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(newCourtName);
@@ -147,11 +134,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CreateBooking_CouldNotFindTheCourtInDatabase()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var bookingTimeService = new BookingTimeService(dbContext);
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var newCourtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(newCourtName);
@@ -169,12 +152,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_BookingNotFound()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -205,12 +183,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_BookingIsAlreadyCancelled()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -243,12 +216,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_CannotCancelBooking24HoursBeforeTheBooking()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -281,12 +249,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_AdminCancel24HoursBeforeTheBooking()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -319,12 +282,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task RescheduleBooking_BookingNotFound()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var newCourtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(newCourtName);
@@ -350,10 +308,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CreateBooking_CacheDeleteConfirm()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
         
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -362,7 +317,6 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Users.Add(newUser);
         await dbContext.SaveChangesAsync();
 
-        var bookingTimeService = new BookingTimeService(dbContext);
         var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger);
 
         await cache.SetStringAsync(BookingsAll, "Test-cache");
@@ -386,11 +340,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetUserBooking_CacheHit()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
@@ -435,11 +385,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetUserBooking_CacheMiss()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
@@ -468,11 +414,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetAllBookings_CacheHit()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
@@ -517,11 +459,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetAllBookings_CacheMiss()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
@@ -549,11 +487,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_CacheUserDelte_AdminIsDeleting()
     {
-        var helper = new HelperUnit();
-        var cache = helper.DistributedCache();
-        var dbContext = helper.DbContextHellper();
-        var logger = NullLogger<BookingService>.Instance;
-        var bookingTimeService = new BookingTimeService(dbContext);
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
@@ -584,11 +518,8 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetUserBookings_RedisDown()
     {
-        var helper = new HelperUnit();
+        var (helper, dbContext, _, logger, bookingTimeService) = CreateSetup();
         var cache = new FakeDistributedCache();
-        var dbContext = helper.DbContextHellper();
-        var logger = NullLogger<BookingService>.Instance;
-        var bookingTimeService = new BookingTimeService(dbContext);
 
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
@@ -613,10 +544,9 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CreateBooking_RedisDown()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
+        var (helper, dbContext, _, logger, bookingTimeService) = CreateSetup();
         var cache = new FakeDistributedCache();
-        var logger = NullLogger<BookingService>.Instance;
+
         
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -625,7 +555,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Users.Add(newUser);
         await dbContext.SaveChangesAsync();
 
-        var bookingTimeService = new BookingTimeService(dbContext);
+
         var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger);
 
         var startTime = DateTime.UtcNow.Date.AddDays(2).AddHours(18);
@@ -635,7 +565,16 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         Assert.True(result.Success);
         Assert.Equal(Error.none, result.ErrorMessage);
         Assert.Equal(newUser.Id, databaseSave.UserId);
+    }
 
+    private (HelperUnit helper, AppDbContext dbContext, IDistributedCache cache, ILogger<BookingService> logger, BookingTimeService bookingTimeService) CreateSetup()
+    {  
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<BookingService>.Instance;
+        var bookingTimeService = new BookingTimeService(dbContext);
 
+        return(helper, dbContext, cache, logger, bookingTimeService);
     }
 }

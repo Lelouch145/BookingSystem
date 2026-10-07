@@ -1,5 +1,8 @@
+using System.Net;
+using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Identity.Client;
@@ -27,18 +30,15 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task AvailabilitySchedule_GoodScenario()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<AvailabilityService>.Instance;
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
         
         var courtName = $"newCourt-{Guid.NewGuid()}";
         var savedCourt = await helper.CreateCourtAndSaveDatabase(dbContext, courtName);
 
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
-        var bookingService = new BookingTimeService(dbContext);
 
-        var availabilityService = new AvailabilityService(bookingService, dbContext, cache, logger);
+
+        var availabilityService = new AvailabilityService(bookingTimeService, dbContext, cache, logger);
 
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 60, savedCourt.Id, CancellationToken.None);
 
@@ -50,10 +50,7 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task AvailabilitySchedule_BookingSlotsExist_ScheduleDosentShowTheTime()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<AvailabilityService>.Instance;
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var courtName = $"newCourt-{Guid.NewGuid()}";
         var savedCourt = await helper.CreateCourtAndSaveDatabase(dbContext, courtName);
@@ -64,9 +61,9 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
         dbContext.Bookings.Add(booking);
         await dbContext.SaveChangesAsync();
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
-        var bookingService = new BookingTimeService(dbContext);
 
-        var availabilityService = new AvailabilityService(bookingService, dbContext, cache, logger);
+
+        var availabilityService = new AvailabilityService(bookingTimeService, dbContext, cache, logger);
 
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 60, savedCourt.Id, CancellationToken.None);
 
@@ -77,13 +74,7 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task AvailabilitySchedule_CourtDoesNotExist()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<AvailabilityService>.Instance;
-
-        var bookingTimeService = new BookingTimeService(dbContext);
-
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
         var availabilityService = new AvailabilityService(bookingTimeService, dbContext, cache, logger);
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 60, 2, CancellationToken.None);
@@ -94,16 +85,13 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task AvailabilitySchedule_BookingTimeServiceError()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<AvailabilityService>.Instance;
+        var (helper, dbContext, cache, logger, bookingService) = CreateSetup();
         
         var courtName = $"newCourt-{Guid.NewGuid()}";
         var savedCourt = await helper.CreateCourtAndSaveDatabase(dbContext, courtName);
 
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
-        var bookingService = new BookingTimeService(dbContext);
+
 
         var availabilityService = new AvailabilityService(bookingService, dbContext, cache, logger);
 
@@ -114,10 +102,7 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     [Fact]
     public async Task AvailabilitySchedule_OverlappingBooking_StartTimeExcluded()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<AvailabilityService>.Instance;
+        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
 
         var courtName = $"newCourt-{Guid.NewGuid()}";
         var savedCourt = await helper.CreateCourtAndSaveDatabase(dbContext, courtName);
@@ -128,14 +113,25 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
         dbContext.Bookings.Add(booking);
         await dbContext.SaveChangesAsync();
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
-        var bookingService = new BookingTimeService(dbContext);
 
-        var availabilityService = new AvailabilityService(bookingService, dbContext, cache, logger);
+
+        var availabilityService = new AvailabilityService(bookingTimeService, dbContext, cache, logger);
 
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 90, savedCourt.Id, CancellationToken.None);
         var startTimeToCheck = booking.StartTime.AddMinutes(-30);
 
         Assert.DoesNotContain(startTimeToCheck, schedule.Times);
+    }
+
+    private (HelperUnit helper, AppDbContext dbContext, IDistributedCache cache, ILogger<AvailabilityService> logger, BookingTimeService bookingTimeService) CreateSetup()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<AvailabilityService>.Instance;
+        var bookingService = new BookingTimeService(dbContext);
+
+        return (helper, dbContext, cache, logger, bookingService);
     }
     
 }

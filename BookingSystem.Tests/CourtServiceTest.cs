@@ -1,9 +1,11 @@
+using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Immutable;
 using System.Globalization;
@@ -34,12 +36,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourtTest()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-
-        var cache = helper.DistributedCache();
-
-        var logger = NullLogger<CourtService>.Instance;
+        var (_, dbContext, cache, logger) = CreateSetup();
 
         var courtService = new CourtService(dbContext, cache, logger);
         var courtName = $"Court-{Guid.NewGuid()}";
@@ -58,11 +55,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourtTestInvalidcourtName()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-
-        var logger = NullLogger<CourtService>.Instance;
+        var (_, dbContext, cache, logger) = CreateSetup();
 
         var courtService = new CourtService(dbContext, cache, logger);
 
@@ -75,19 +68,13 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourtDuplicateTest()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-
-        var logger = NullLogger<CourtService>.Instance;
+        var (helper, dbContext, cache, logger) = CreateSetup();
 
         var courtService = new CourtService(dbContext, cache, logger);
 
         var courtName = $"Court-{Guid.NewGuid()}";
 
-        var courtServiceHelper = new HelperUnit();
-
-        var newCourt = courtServiceHelper.CreateNewCourt(courtName);
+        var newCourt = helper.CreateNewCourt(courtName);
 
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
@@ -99,9 +86,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task DisableCourtTest()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
+        var (helper, dbContext, cache, logger) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
@@ -112,8 +97,6 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         var newCourt = courtServiceHelper.CreateNewCourt(courtName);
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
-
-        var logger = NullLogger<CourtService>.Instance;
 
         var courtService = new CourtService(dbContext, cache, logger);
 
@@ -126,20 +109,16 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task DisableCourtSearchNullTest()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
+        var (helper, dbContext, cache, logger) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
 
 
-        var courtServiceHelper = new HelperUnit();
 
-        var newCourt = courtServiceHelper.CreateNewCourt(courtName);
+        var newCourt = helper.CreateNewCourt(courtName);
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
-        var logger = NullLogger<CourtService>.Instance;
 
         var courtService = new CourtService(dbContext, cache, logger);
         var result = await courtService.DisableCourt("Random", CancellationToken.None);
@@ -149,9 +128,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task UpdateCourtTest()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
+        var (helper, dbContext, cache, logger) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
@@ -161,7 +138,6 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         var newNormalizedCourtName = CultureInfo.InvariantCulture.TextInfo
             .ToTitleCase(newCourtName.Trim().ToLowerInvariant());
 
-        var logger = NullLogger<CourtService>.Instance;
 
         var courtServiceHelper = new HelperUnit();
         var newCourt = courtServiceHelper.CreateNewCourt(courtName);
@@ -180,16 +156,13 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task ShowCourts_CacheMiss()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
+        var (helper, dbContext, cache, logger) = CreateSetup();
         var courtName = $"Court-{Guid.NewGuid()}";
 
         var newCourt = helper.CreateNewCourt(courtName);
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
-        var logger = NullLogger<CourtService>.Instance;
 
         var cached = await cache.GetStringAsync(CourtsAll);
         Assert.Null(cached);
@@ -206,16 +179,12 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task ShowCourts_CacheHit()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
+        var (helper, dbContext, cache, logger) = CreateSetup();
         var courtName = $"Courts-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
 
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
-
-        var logger = NullLogger<CourtService>.Instance;
     
         var courtNameCache = $"Courts-{Guid.NewGuid()}";
         var newCourtCahce = helper.CreateNewCourt(courtNameCache);
@@ -241,10 +210,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task ShowCourts_NullCache_FallBackSqlServer()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<CourtService>.Instance;
+        var (helper, dbContext, cache, logger) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -262,10 +228,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourt_RemoveCacheAfterCreation()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
-        var logger = NullLogger<CourtService>.Instance;
+        var (helper, dbContext, cache, logger) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -291,16 +254,15 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task ShowActiveCourts_CacheHit()
     {
-        var helper = new HelperUnit();
-        var dbContext = helper.DbContextHellper();
-        var cache = helper.DistributedCache();
+        var (helper, dbContext, cache, logger) = CreateSetup();
+
         var courtName = $"Courts-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
 
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
-        var logger = NullLogger<CourtService>.Instance;
+
     
         var courtNameCache = $"Courts-{Guid.NewGuid()}";
         var newCourtCahce = helper.CreateNewCourt(courtNameCache);
@@ -323,6 +285,16 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         var getCourt = result.First(x => x.CourtName == courtNameCache);
 
         Assert.Equal(courtNameCache, getCourt.CourtName);
+    }
+
+    private (HelperUnit helper, AppDbContext dbContext, IDistributedCache cache, ILogger<CourtService> logger) CreateSetup()
+    {
+        var helper = new HelperUnit();
+        var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<CourtService>.Instance;
+
+        return(helper, dbContext, cache, logger);
     }
 
 
