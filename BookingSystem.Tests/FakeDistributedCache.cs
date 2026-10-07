@@ -35,6 +35,6 @@ public class FakeDistributedCache : IDistributedCache
     }
     Task IDistributedCache.RemoveAsync(string key, CancellationToken token)
     {
-                throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Fake Redis connection failure");
+        throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Fake Redis connection failure");
     }
 }

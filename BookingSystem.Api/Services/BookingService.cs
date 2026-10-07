@@ -19,6 +19,7 @@ public class BookingService
 {
     private const string BookingsAll = "bookings:all";
     private const string BookingsUser = "bookings:user:";
+    private const string Availability = "Availability";
     private const int TTL = 5;
     private readonly AppDbContext _dbContext;
     private readonly BookingTimeService _bookingTimeService;
@@ -126,9 +127,11 @@ public class BookingService
             ClientBooking = bookingClient,
             ErrorMessage = Error.none
         };
+        var bookingDate = DateOnly.FromDateTime(booking.StartTime);
 
         await RemoveCacheHelperAsync(BookingsAll, cancellationToken);
         await RemoveCacheHelperAsync($"{BookingsUser}{booking.UserId}", cancellationToken);
+        await RemoveAvailabilityCacheAsync(courtId, bookingDate, cancellationToken);
         return result;
 
     }
@@ -254,7 +257,7 @@ public class BookingService
             Status = x.Status,
             CreatedAt = x.CreatedAt   
         }).ToList();
-        var serializedCourts = JsonSerializer.Serialize(bookingsReturn);
+        var serializedBookings = JsonSerializer.Serialize(bookingsReturn);
 
         var options = new DistributedCacheEntryOptions
         {
@@ -264,7 +267,7 @@ public class BookingService
         {
             try
             {
-                await _cache.SetStringAsync(BookingsAll, serializedCourts, options);
+                await _cache.SetStringAsync(BookingsAll, serializedBookings, options);
             }
             catch(RedisConnectionException ex)
             {
@@ -346,8 +349,13 @@ public class BookingService
             };
         }
 
+        var dateStartTime = DateOnly.FromDateTime(findBooking.StartTime);
+        var durationTimeSpan = findBooking.EndTime - findBooking.StartTime;
+        var duration = (int)durationTimeSpan.TotalMinutes;
+
         await RemoveCacheHelperAsync(BookingsAll, cancellationToken);
         await RemoveCacheHelperAsync($"{BookingsUser}{findBooking.UserId}", cancellationToken);
+        await RemoveAvailabilityCacheAsync(findBooking.CourtId, dateStartTime, cancellationToken);
         return new CancelBookingOrUpdate
         {
             Success = true
@@ -410,7 +418,8 @@ public class BookingService
                 ErrorMessage = Error.BookingTimeIsOverlappingWithAnotherBooking
             };
         }
-        
+        var oldBookingDurationTimeSpan = findBooking.EndTime - findBooking.StartTime;
+        var dateOnlyFindBooking = DateOnly.FromDateTime(findBooking.StartTime);
         var endTime = newStartTime.AddMinutes(duration);
 
         findBooking.StartTime = newStartTime;
@@ -453,8 +462,17 @@ public class BookingService
             throw;
         }
 
+
+        var durationOldTime = (int)oldBookingDurationTimeSpan.TotalMinutes;
+        var dateOnlyNewStartTime = DateOnly.FromDateTime(newStartTime);
+
         await RemoveCacheHelperAsync(BookingsAll, cancellationToken);
         await RemoveCacheHelperAsync($"{BookingsUser}{findBooking.UserId}", cancellationToken);
+        await RemoveAvailabilityCacheAsync(findBooking.CourtId, dateOnlyFindBooking, cancellationToken);
+        if(dateOnlyFindBooking != dateOnlyNewStartTime)
+        {
+            await RemoveAvailabilityCacheAsync(findBooking.CourtId, dateOnlyNewStartTime, cancellationToken);
+        }
         return new CancelBookingOrUpdate
         {
             Success = true
@@ -488,6 +506,23 @@ public class BookingService
         try
         {
             await _cache.RemoveAsync(cacheKey, cancellationToken);
+        }
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogWarning(ex, "Redis is down");
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+        }
+    }
+
+    private async Task RemoveAvailabilityCacheAsync(int courtId, DateOnly date, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _cache.RemoveAsync(cacheKey.AvailabilityKey(courtId,date,60), cancellationToken);
+            await _cache.RemoveAsync(cacheKey.AvailabilityKey(courtId,date,90), cancellationToken);
         }
         catch(RedisConnectionException ex)
         {

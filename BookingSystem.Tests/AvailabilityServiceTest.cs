@@ -1,5 +1,7 @@
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Identity.Client;
 using Microsoft.IdentityModel.Tokens;
 
@@ -27,6 +29,8 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<AvailabilityService>.Instance;
         
         var courtName = $"newCourt-{Guid.NewGuid()}";
         var savedCourt = await helper.CreateCourtAndSaveDatabase(dbContext, courtName);
@@ -34,7 +38,7 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var bookingService = new BookingTimeService(dbContext);
 
-        var availabilityService = new AvailabilityService(bookingService, dbContext);
+        var availabilityService = new AvailabilityService(bookingService, dbContext, cache, logger);
 
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 60, savedCourt.Id, CancellationToken.None);
 
@@ -48,6 +52,8 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<AvailabilityService>.Instance;
 
         var courtName = $"newCourt-{Guid.NewGuid()}";
         var savedCourt = await helper.CreateCourtAndSaveDatabase(dbContext, courtName);
@@ -60,7 +66,7 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var bookingService = new BookingTimeService(dbContext);
 
-        var availabilityService = new AvailabilityService(bookingService, dbContext);
+        var availabilityService = new AvailabilityService(bookingService, dbContext, cache, logger);
 
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 60, savedCourt.Id, CancellationToken.None);
 
@@ -73,10 +79,12 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<AvailabilityService>.Instance;
 
         var bookingTimeService = new BookingTimeService(dbContext);
 
-        var availabilityService = new AvailabilityService(bookingTimeService, dbContext);
+        var availabilityService = new AvailabilityService(bookingTimeService, dbContext, cache, logger);
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 60, 2, CancellationToken.None);
 
@@ -88,6 +96,8 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<AvailabilityService>.Instance;
         
         var courtName = $"newCourt-{Guid.NewGuid()}";
         var savedCourt = await helper.CreateCourtAndSaveDatabase(dbContext, courtName);
@@ -95,7 +105,7 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var bookingService = new BookingTimeService(dbContext);
 
-        var availabilityService = new AvailabilityService(bookingService, dbContext);
+        var availabilityService = new AvailabilityService(bookingService, dbContext, cache, logger);
 
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 30, savedCourt.Id, CancellationToken.None);
 
@@ -106,6 +116,8 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
+        var cache = helper.DistributedCache();
+        var logger = NullLogger<AvailabilityService>.Instance;
 
         var courtName = $"newCourt-{Guid.NewGuid()}";
         var savedCourt = await helper.CreateCourtAndSaveDatabase(dbContext, courtName);
@@ -118,7 +130,7 @@ public class AvailabilityServiceTest : IClassFixture<DatabaseFixture>, IAsyncLif
         var bookingDate = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var bookingService = new BookingTimeService(dbContext);
 
-        var availabilityService = new AvailabilityService(bookingService, dbContext);
+        var availabilityService = new AvailabilityService(bookingService, dbContext, cache, logger);
 
         var schedule = await availabilityService.AvailabilitySchedule(bookingDate, 90, savedCourt.Id, CancellationToken.None);
         var startTimeToCheck = booking.StartTime.AddMinutes(-30);

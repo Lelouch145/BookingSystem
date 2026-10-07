@@ -86,6 +86,7 @@ public class CourtService
     public async Task<IEnumerable<Court>> ShowCourts(CancellationToken cancellationToken)
     {
         string? cacheCourts = null;
+        bool redisAvailable = true;
         try
         {
             cacheCourts = await _cache.GetStringAsync(CourtsAll, cancellationToken);
@@ -93,10 +94,12 @@ public class CourtService
         catch(RedisConnectionException ex)
         {
             _logger.LogWarning(ex, "Redis is down");
+            redisAvailable = false;
         }
         catch(RedisTimeoutException ex)
         {
             _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            redisAvailable = false;
 
         }
         if (cacheCourts != null)
@@ -122,24 +125,29 @@ public class CourtService
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTLTime)
         };
-        try
+        if (redisAvailable)
         {
-            await _cache.SetStringAsync(CourtsAll, serializedCourts, options, cancellationToken);
-        }
-        catch(RedisConnectionException ex)
-        {
-            _logger.LogWarning(ex, "Redis is down");
-        }
-        catch(RedisTimeoutException ex)
-        {
-            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            try
+            {
+                await _cache.SetStringAsync(CourtsAll, serializedCourts, options, cancellationToken);
+            }
+            catch(RedisConnectionException ex)
+            {
+                _logger.LogWarning(ex, "Redis is down");
+            }
+            catch(RedisTimeoutException ex)
+            {
+                _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            }
         }
         return courts;
+
     }
 
     public async Task<IEnumerable<Court>> ShowActiveCourts(CancellationToken cancellationToken)
     {
         string? cacheActiveCourts = null;
+        bool redisAvailable = true;
         try
         {
             cacheActiveCourts = await _cache.GetStringAsync(CourtsActive, cancellationToken);
@@ -147,10 +155,12 @@ public class CourtService
         catch(RedisConnectionException ex)
         {
             _logger.LogWarning(ex, "Redis is down");
+            redisAvailable = false;
         }
         catch(RedisTimeoutException ex)
         {
             _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            redisAvailable = false;
 
         }
 
@@ -175,18 +185,21 @@ public class CourtService
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(TTLTime)
         };
-        try
+        if (redisAvailable)
         {
-            
-            await _cache.SetStringAsync(CourtsActive, serializedCourts, options, cancellationToken);
-        }
-        catch(RedisConnectionException ex)
-        {
-            _logger.LogWarning(ex, "Redis is down");
-        }
-        catch(RedisTimeoutException ex)
-        {
-            _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            try
+            {
+                
+                await _cache.SetStringAsync(CourtsActive, serializedCourts, options, cancellationToken);
+            }
+            catch(RedisConnectionException ex)
+            {
+                _logger.LogWarning(ex, "Redis is down");
+            }
+            catch(RedisTimeoutException ex)
+            {
+                _logger.LogWarning(ex, "Redis timedout operation taking to long");
+            }
         }
         return activeCourts;
 
