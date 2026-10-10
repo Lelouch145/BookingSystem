@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Update.Internal;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using StackExchange.Redis;
+using BookingSystem.Api.Services.Caching;
 
 namespace BookingSystem.Api.Services;
 
@@ -21,12 +22,14 @@ public class CourtService
     private readonly AppDbContext _dbContext;
     private readonly IDistributedCache _cache;
     private readonly ILogger<CourtService> _logger;
+    private readonly RedisCacheService _redisCacheService;
 
-    public CourtService(AppDbContext dbContext, IDistributedCache cache, ILogger<CourtService> logger)
+    public CourtService(AppDbContext dbContext, IDistributedCache cache, ILogger<CourtService> logger, RedisCacheService redisCacheService)
     {
         _dbContext = dbContext;
         _cache = cache;
         _logger = logger;
+        _redisCacheService = redisCacheService;
     }
     public async Task<CourtResult> CreateCourt(string courtName, string description, CancellationToken cancellationToken)
     {
@@ -237,6 +240,7 @@ public class CourtService
         await _dbContext.SaveChangesAsync(cancellationToken);
         await InvalidateCourtCacheAsync(CourtsAll, cancellationToken);
         await InvalidateCourtCacheAsync(CourtsActive, cancellationToken);
+        await _redisCacheService.DeleteFromRedis(search.Id);
         return new CourtResult
         {
             ErrorMessage = Error.none

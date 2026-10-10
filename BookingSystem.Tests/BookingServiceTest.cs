@@ -488,7 +488,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     public async Task CancelBooking_CacheUserDelte_AdminIsDeleting()
     {
         var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
-
+        var date = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
         var newCourt = helper.CreateNewCourt($"Court-{Guid.NewGuid()}");
@@ -500,6 +500,8 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         await dbContext.SaveChangesAsync();
         await cache.SetStringAsync(BookingsAll, "Test-CacheAll");
         await cache.SetStringAsync($"{BookingsUser}{newUser.Id}", "Test-CacheUser");
+        await cache.SetStringAsync(cacheKey.AvailabilityKey(newCourt.Id, date, 60), "Test-availabilityCache");
+
 
         var cacheAllBeforeResult = await cache.GetStringAsync(BookingsAll);
         Assert.NotNull(cacheAllBeforeResult);
@@ -513,6 +515,8 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         Assert.Null(cacheDeleteConfirmAll);
         var cacheDeleteConfirmUser = await cache.GetStringAsync($"{BookingsUser}{newUser.Id}");
         Assert.Null(cacheDeleteConfirmUser);
+        var cacheDeleteConfirmAvailability = await cache.GetStringAsync(cacheKey.AvailabilityKey(newCourt.Id, date, 60));
+        Assert.Null(cacheDeleteConfirmAvailability);
     }
 
     [Fact]

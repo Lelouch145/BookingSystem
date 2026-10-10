@@ -1,6 +1,7 @@
 using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
+using BookingSystem.Api.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Caching.Distributed;
@@ -36,9 +37,9 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourtTest()
     {
-        var (_, dbContext, cache, logger) = CreateSetup();
+        var (_, dbContext, cache, logger, redisCacheService) = CreateSetup();
 
-        var courtService = new CourtService(dbContext, cache, logger);
+        var courtService = new CourtService(dbContext, cache, logger, redisCacheService);
         var courtName = $"Court-{Guid.NewGuid()}";
 
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
@@ -55,9 +56,9 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourtTestInvalidcourtName()
     {
-        var (_, dbContext, cache, logger) = CreateSetup();
+        var (_, dbContext, cache, logger, redisCacheService) = CreateSetup();
 
-        var courtService = new CourtService(dbContext, cache, logger);
+        var courtService = new CourtService(dbContext, cache, logger, redisCacheService);
 
         var result = await courtService.CreateCourt("", "", CancellationToken.None);
 
@@ -68,9 +69,9 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourtDuplicateTest()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
 
-        var courtService = new CourtService(dbContext, cache, logger);
+        var courtService = new CourtService(dbContext, cache, logger, redisCacheService);
 
         var courtName = $"Court-{Guid.NewGuid()}";
 
@@ -86,7 +87,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task DisableCourtTest()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
@@ -98,7 +99,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
-        var courtService = new CourtService(dbContext, cache, logger);
+        var courtService = new CourtService(dbContext, cache, logger, redisCacheService);
 
         var result = await courtService.DisableCourt(normalizedCourtName, CancellationToken.None);
         var updateCourt = await dbContext.Courts.FirstAsync(x => x.Id == newCourt.Id);
@@ -109,7 +110,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task DisableCourtSearchNullTest()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
 
@@ -120,7 +121,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         await dbContext.SaveChangesAsync();
 
 
-        var courtService = new CourtService(dbContext, cache, logger);
+        var courtService = new CourtService(dbContext, cache, logger, redisCacheService);
         var result = await courtService.DisableCourt("Random", CancellationToken.None);
 
         Assert.Equal(Error.CouldNotFindTheCourtInDataBase, result.ErrorMessage);
@@ -128,7 +129,8 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task UpdateCourtTest()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
+
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var normalizedCourtName = CultureInfo.InvariantCulture.TextInfo
@@ -144,7 +146,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         dbContext.Courts.Add(newCourt);
         await dbContext.SaveChangesAsync();
 
-        var courtService = new CourtService(dbContext, cache, logger);
+        var courtService = new CourtService(dbContext, cache, logger, redisCacheService);
         var result = await courtService.UpdateCourt(newCourt.CourtName, newCourtName, "", true, CancellationToken.None);
 
         var databaseCourtName = await dbContext.Courts.FirstAsync(x => x.Id == newCourt.Id);
@@ -156,7 +158,9 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task ShowCourts_CacheMiss()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
+
+
         var courtName = $"Court-{Guid.NewGuid()}";
 
         var newCourt = helper.CreateNewCourt(courtName);
@@ -167,7 +171,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         var cached = await cache.GetStringAsync(CourtsAll);
         Assert.Null(cached);
 
-        var service = new CourtService(dbContext, cache, logger);
+        var service = new CourtService(dbContext, cache, logger, redisCacheService);
         var result = await service.ShowCourts(CancellationToken.None);
         var cachedAfterResult = await cache.GetStringAsync(CourtsAll);
         var findCourt = result.First(x => x.CourtName == courtName);
@@ -179,7 +183,9 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task ShowCourts_CacheHit()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
+
+
         var courtName = $"Courts-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
 
@@ -200,7 +206,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         var cachedBeforeServiceCall = await cache.GetStringAsync(CourtsAll);
         Assert.NotNull(cachedBeforeServiceCall);
 
-        var service = new CourtService(dbContext, cache, logger);
+        var service = new CourtService(dbContext, cache, logger, redisCacheService);
         var result = await service.ShowCourts(CancellationToken.None);
         var getCourt = result.First(x => x.CourtName == courtNameCache);
 
@@ -210,7 +216,8 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task ShowCourts_NullCache_FallBackSqlServer()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
+
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -219,7 +226,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
 
         await cache.SetStringAsync(CourtsAll, "this-is-not-json");
 
-        var service = new CourtService(dbContext, cache, logger);
+        var service = new CourtService(dbContext, cache, logger, redisCacheService);
         var result = await service.ShowCourts(CancellationToken.None);
         var foundCourt = result.First(x => x.CourtName == courtName);
         Assert.Equal(courtName, foundCourt.CourtName);
@@ -228,7 +235,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task CreateCourt_RemoveCacheAfterCreation()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
 
         var courtName = $"Court-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -242,7 +249,7 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         var cacheActiveCourts = await cache.GetStringAsync(CourtsActive);
         Assert.NotNull(cacheCourtsAll);
         Assert.NotNull(cacheActiveCourts);
-        var service = new CourtService(dbContext, cache, logger);
+        var service = new CourtService(dbContext, cache, logger, redisCacheService);
         var result = await service.CreateCourt($"Court-{Guid.NewGuid()}", "", CancellationToken.None);
         var cacheAll = await cache.GetStringAsync(CourtsAll);
         var cacheActive = await cache.GetStringAsync(CourtsActive);
@@ -254,7 +261,9 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     [Fact]
     public async Task ShowActiveCourts_CacheHit()
     {
-        var (helper, dbContext, cache, logger) = CreateSetup();
+        var (helper, dbContext, cache, logger, redisCacheService) = CreateSetup();
+
+
 
         var courtName = $"Courts-{Guid.NewGuid()}";
         var newCourt = helper.CreateNewCourt(courtName);
@@ -280,21 +289,23 @@ public class CourtServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         var cacheForAllCourts = await cache.GetStringAsync(CourtsAll);
         Assert.Null(cacheForAllCourts);
 
-        var service = new CourtService(dbContext, cache, logger);
+        var service = new CourtService(dbContext, cache, logger, redisCacheService);
         var result = await service.ShowActiveCourts(CancellationToken.None);
         var getCourt = result.First(x => x.CourtName == courtNameCache);
 
         Assert.Equal(courtNameCache, getCourt.CourtName);
     }
 
-    private (HelperUnit helper, AppDbContext dbContext, IDistributedCache cache, ILogger<CourtService> logger) CreateSetup()
+    private (HelperUnit helper, AppDbContext dbContext, IDistributedCache cache, ILogger<CourtService> logger, RedisCacheService redisCacheService) CreateSetup()
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
         var cache = helper.DistributedCache();
         var logger = NullLogger<CourtService>.Instance;
+        var redisHelper = new RedisIntegrationHelper();
+        var (_, _, redisCacheService) = redisHelper.CreateRedisSetup();
 
-        return(helper, dbContext, cache, logger);
+        return(helper, dbContext, cache, logger, redisCacheService);
     }
 
 

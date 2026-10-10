@@ -16,6 +16,8 @@ using System.Runtime.InteropServices.Marshalling;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
+using StackExchange.Redis;
+using BookingSystem.Api.Services.Caching;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -73,6 +75,12 @@ builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = "redisConnectionString";
 });
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+   return ConnectionMultiplexer.Connect(redisConnectionString); 
+});
+builder.Services.AddSingleton<RedisCacheService>();
 builder.Services.AddScoped<CourtService>();
 builder.Services.AddScoped<RegisterService>();
 builder.Services.AddScoped<LoginService>();

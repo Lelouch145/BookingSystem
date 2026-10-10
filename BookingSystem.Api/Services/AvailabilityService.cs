@@ -11,7 +11,6 @@ namespace BookingSystem.Api.Services;
 
 public class AvailabilityService
 {
-    private const string Availability = "Availability";
     private const int TTL = 5;
     private readonly BookingTimeService _bookingTimeService;
     private readonly AppDbContext _dbContext;
