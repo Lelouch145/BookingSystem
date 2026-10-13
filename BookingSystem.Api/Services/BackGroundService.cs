@@ -4,6 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using BookingSystem.Api.Models.SystemModels;
 namespace BookingSystem.Api.Services;
 
+/// <summary>
+/// Uses IServiceScopeFactory to resolve BokingCompletionService,
+/// because BookingCompletionService is registered as a scoped service.
+/// Runs every minute and calls BookingCompletionService to check
+/// for bookings that should be marked as completed
+/// </summary>
 public class BookingCompletionBackgroundService : BackgroundService
 {
 

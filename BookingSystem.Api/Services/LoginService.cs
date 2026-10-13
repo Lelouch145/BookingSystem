@@ -4,7 +4,12 @@ using BookingSystem.Api.Models.SystemModels;
 using Microsoft.AspNetCore.Identity;
 
 namespace BookingSystem.Api.Services;
-
+/// <summary>
+/// Handles user authentication by validating login credentials.
+/// Uses UserManager to find users by email and verify their passwords.
+/// Uses JWTService to generate a JWT token containing the authenticated users identity and claims.
+/// The generated token allows users to access protected endpoints based on their permissions
+/// </summary>
 public class LoginService
 {
     private readonly UserManager<ApplicationUser> _userManager;

@@ -6,7 +6,12 @@ using BookingSystem.Api.Models.SystemModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using StackExchange.Redis;
-
+/// <summary>
+/// Show available booking times for a selected court, date and duration.
+/// Uses BookingTimeService to validate the date and duration and generate possible booking times.
+/// Uses AppDbContext to verify that the court exists and filter out occupied booking slots.
+/// Uses Redis cache to store and retrieve schedules
+/// </summary>
 namespace BookingSystem.Api.Services;
 
 public class AvailabilityService
@@ -47,11 +52,11 @@ public class AvailabilityService
         {
             try
             {
-                var serializedSchedule = JsonSerializer.Deserialize<Schedule>(cache);
+                var deserializedSchedule = JsonSerializer.Deserialize<Schedule>(cache);
 
-                if(serializedSchedule != null)
+                if(deserializedSchedule != null)
                 {
-                    return serializedSchedule;
+                    return deserializedSchedule;
                 }  
             }
             catch(JsonException ex)

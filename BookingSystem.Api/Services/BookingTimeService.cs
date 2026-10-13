@@ -4,7 +4,12 @@ using BookingSystem.Api.Models.SystemModels;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookingSystem.Api.Services;
-
+/// <summary>
+/// Handles booking time validation and generates possible booking times.
+/// Uses opening and closing hours to determine when bookings are allowed.
+/// Validates dates, start times, and booking durations according to the booking rules.
+/// Uses AppDbContext to check for overlapping confirmed bookings.
+/// </summary>
 public class BookingTimeService
 {
     private readonly AppDbContext _dbContext;

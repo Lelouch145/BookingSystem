@@ -3,7 +3,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookingSystem.Api.Services;
-
+/// <summary>
+/// Initializes the required user roles in the database.
+/// Ensures that roles such as Admin and User exist before they are assignet to registered accounts.
+/// </summary>
 public class SeedService
 {
     private const string AdminRole = "Admin";
@@ -40,7 +43,11 @@ public class SeedService
             }
         }
     }
-    
+    /// <summary>
+    /// Seeds an administrator account using email and password from configuration.
+    /// If the administrator account does not exist, it creates the account and assigns the Admin role.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation</returns>
     private async Task SeedAdminUserAsync()
     {
         var adminPassword = _config["Admin:Password"] ?? throw new InvalidOperationException("Admin password not found");

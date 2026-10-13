@@ -3,6 +3,10 @@ using BookingSystem.Api.Models.SystemModels;
 using Microsoft.EntityFrameworkCore;
 namespace BookingSystem.Api.Services;
 
+/// <summary>
+/// Uses AppDbContext to find confirmed bookings whose EndTime has passed.
+/// Updates those bookings by chagning their status from Confirmed to Completed
+/// </summary>
 public class BookingCompletionService
 {
     private readonly AppDbContext _dbContext;

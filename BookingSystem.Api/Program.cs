@@ -18,13 +18,16 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using StackExchange.Redis;
 using BookingSystem.Api.Services.Caching;
+using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(options =>
 {
+    // Configure JWT Bearer authentication for Swagger UI.
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -35,6 +38,7 @@ builder.Services.AddSwaggerGen(options =>
 
     });
 
+    // Apply the Bearer secutiry scheme globally in Swagger documentation
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -49,6 +53,7 @@ builder.Services.AddSwaggerGen(options =>
             Array.Empty<string>()
         }
     });
+    // Map DateOnly to the OpenApi date format (yyy-MM-dd).
     options.MapType<DateOnly>(() => new OpenApiSchema
     {
        Type = "string",

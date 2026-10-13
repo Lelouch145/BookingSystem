@@ -13,7 +13,14 @@ using StackExchange.Redis;
 using BookingSystem.Api.Services.Caching;
 
 namespace BookingSystem.Api.Services;
-
+/// <summary>
+/// Handles court-related operations such as creating, retrieving, updating and disabling courts.
+/// Uses AppDbContext to interact with SQL Server through Entity Framework Core.
+/// Uses IDistributedCache for basic Redis operations suc as retrieving, storing and removing cache.
+/// Uses ILogger to log warnings when chache operations fail.
+/// Uses RedisCacheService to scan for and delte availability cache keys
+/// through IConnectionMultiplexer
+/// </summary>
 public class CourtService
 {
     private const string CourtsAll = "courts:all";
@@ -31,6 +38,16 @@ public class CourtService
         _logger = logger;
         _redisCacheService = redisCacheService;
     }
+    /// <summary>
+    /// Creates a new court after validating the provided court name.
+    /// Ensures that the court name is not empty and that no court with the same name already exists.
+    /// If the court is successfully created, the cache entries for all courts and active court are invalidated.
+    /// This method is intended for administrators only, with authorization enforeced at the endpoint level.
+    /// </summary>
+    /// <param name="courtName">The name of the court to create</param>
+    /// <param name="description">The description of the court</param>
+    /// <param name="cancellationToken">The token used to cancel operation</param>
+    /// <returns>A CourtResult containing the created court information or an error.</returns>
     public async Task<CourtResult> CreateCourt(string courtName, string description, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(courtName))
@@ -85,7 +102,15 @@ public class CourtService
 
 
     }
-
+/// <summary>
+/// Retrieves all courts that have been created, including inactive courts.
+/// If cached court data exists, it is returned directly.
+/// Otherwise, the method retrieves all courts from the database
+/// and stores the result in cache for faster access on future requests.
+/// This method is intended for administrators only, with authorization enforced at the endpoint level.
+/// </summary>
+/// <param name="cancellationToken">Token used to cancel the operation</param>
+/// <returns>An IEnumerable of Court objects containing all courts</returns>
     public async Task<IEnumerable<Court>> ShowCourts(CancellationToken cancellationToken)
     {
         string? cacheCourts = null;
@@ -146,7 +171,15 @@ public class CourtService
         return courts;
 
     }
-
+/// <summary>
+/// Retrieves all active courts.
+/// If cached court data exists, it is returned directly
+/// Otherwise, the method retrieves all active courts from the database
+/// and stores the result in cache for faster access on future requests.
+/// This method is intended for regular users to view available courts.
+/// </summary>
+/// <param name="cancellationToken">Token used to cancel the operation.</param>
+/// <returns>An IEnumerable of Court objects containing all active courts</returns>
     public async Task<IEnumerable<Court>> ShowActiveCourts(CancellationToken cancellationToken)
     {
         string? cacheActiveCourts = null;
@@ -207,7 +240,17 @@ public class CourtService
         return activeCourts;
 
     }
-
+/// <summary>
+/// Disables and existing court.
+/// Validates courtName and searches in the database for the specified court.
+/// If court exists and is active it gets its status changed to inactive.
+/// Invalidates the cached lists of all courts and active courts via IDistributedCache.
+/// Uses RedisCacheService to scan for and remove all availablility cache key associated with the disabled court.
+/// This method is intended for administrators only, with authorization enforced at the endpoint level.
+/// </summary>
+/// <param name="courtName">The desired courts name.</param>
+/// <param name="cancellationToken">Token used to cancel the operation.</param>
+/// <returns>A CourtResult indicating the outcome of the operation.</returns>
     public async Task<CourtResult> DisableCourt(string courtName, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(courtName))
@@ -248,7 +291,18 @@ public class CourtService
 
 
     }
-
+/// <summary>
+/// Updates an existing court.
+/// Allows updating the courts name, description and active status.
+/// Invalidates the cached lists of all courts and active courts via IDistributedCache.
+/// This method is intended for administrators only, with authorization enforced at the endpoint level.
+/// </summary>
+/// <param name="findCourt">The name of the court to update</param>
+/// <param name="courtName">The new name of the court</param>
+/// <param name="description">The new description of the court</param>
+/// <param name="isActive">The new active status of the court</param>
+/// <param name="cancellationToken">Token used to cancel the operation</param>
+/// <returns>CourtResult indicating the outcome of the operation</returns>
     public async Task<CourtResult> UpdateCourt(string findCourt, string courtName, string description, bool isActive, CancellationToken cancellationToken)
     {
 
@@ -325,6 +379,14 @@ public class CourtService
         courtName = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(courtName);
         return courtName;
     }
+    /// <summary>
+    /// Removes a specified cache entry using its cache key.
+    /// Handles Redis connection and timeout erros to prevent cache failures
+    /// fro affecting the main operation
+    /// </summary>
+    /// <param name="cacheKey">The keyof the cache entry to remove. </param>
+    /// <param name="cancellationToken">Token used to cancel operation</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task InvalidateCourtCacheAsync(string removeCache, CancellationToken cancellationToken)
     {
         try

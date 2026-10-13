@@ -5,10 +5,14 @@ using BookingSystem.Api.Models.SystemModels;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.VisualBasic;
 
+/// <summary>
+/// Handles the registration of a new user account.
+/// Uses Usermanager to create users and assign roles to newly registered accounts.
+/// If role assignment fails, the newly created account is deleted to prevent users from existing without an assigned role.
+/// 
+/// </summary>
 public class RegisterService
 {
-    
-
     private readonly UserManager<ApplicationUser> _userManager;
 
 

@@ -4,7 +4,12 @@ using StackExchange.Redis;
 using RedisServer = StackExchange.Redis.IServer;
 
 namespace BookingSystem.Api.Services.Caching;
-
+/// <summary>
+/// Handles Redis cache invalidation for court availability data.
+/// Uses IConnectionMultiplexer to access Redis connections and server operations.
+/// Uses IServer to Scan for cache keys matching the specified court ID.
+/// Uses IDatabase to delete the matching cache keys.
+/// </summary>
 public class RedisCacheService
 {
     private const string Availability = "availability";
