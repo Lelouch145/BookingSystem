@@ -26,5 +26,8 @@ public enum Error
     BookingIsCompletedAndCannotBeChanged,
     UserDoesNotOwnBooking,
     BookingWasModifiedByAnotherRequest,
-    CannotRescheduleBooking24HoursBeforeTheBooking
+    CannotRescheduleBooking24HoursBeforeTheBooking,
+    TheBookingIsAlreadyOnHold,
+    HoldServiceUnavailable,
+    HoldExpirationTimeUnavailable
 }
