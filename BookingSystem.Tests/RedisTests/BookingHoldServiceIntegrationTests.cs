@@ -72,7 +72,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
         var result1 = await service.CreateHoldAsync(date, timeOnly, duration, newCourt.Id, newUser.Id, CancellationToken.None);
         var result2 = await service.CreateHoldAsync(date, timeOnly, duration, newCourt.Id, newUser2.Id, CancellationToken.None);
         Assert.Equal(Error.none, result1.ErrorMessage);
-        Assert.Equal(Error.TheBookingIsAlreadyOnHold, result2.ErrorMessage);
+        Assert.Equal(Error.BookingSlotAlreadyOnHold, result2.ErrorMessage);
     }
     [Fact]
     public async Task CreateHold_OverlappingSlots()
@@ -94,7 +94,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
         var result1 = await service.CreateHoldAsync(date, timeOnly, duration, newCourt.Id, newUser.Id, CancellationToken.None);
         var result2 = await service.CreateHoldAsync(date, new TimeOnly(15, 30), 90, newCourt.Id, newUser2.Id, CancellationToken.None);
         Assert.Equal(Error.none, result1.ErrorMessage);
-        Assert.Equal(Error.TheBookingIsAlreadyOnHold, result2.ErrorMessage);
+        Assert.Equal(Error.BookingSlotAlreadyOnHold, result2.ErrorMessage);
     }
     [Fact]
     public async Task CreateHold_UserAlreadyHasHold()
@@ -117,7 +117,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
         var result2 = await service.CreateHoldAsync(date, new TimeOnly(15, 30), 90, newCourt.Id, newUser2.Id, CancellationToken.None);
 
         Assert.Equal(Error.none, result1.ErrorMessage);
-        Assert.Equal(Error.TheBookingIsAlreadyOnHold, result2.ErrorMessage);
+        Assert.Equal(Error.BookingSlotAlreadyOnHold, result2.ErrorMessage);
     }
     [Fact]
     public async Task CreateHold_Expiration()
@@ -132,7 +132,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
-        var date = new DateOnly(2026, 11, 20);
+        var date = DateOnly.FromDateTime(DateTime.Today).AddMonths(1).AddDays(14);
         var timeOnly = new TimeOnly(15, 00);
         var duration = 60;
         var result = await service.CreateHoldAsync(date, timeOnly, duration, newCourt.Id, newUser.Id, CancellationToken.None);
@@ -166,7 +166,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
         var results = await Task.WhenAll(result1, result2);
 
         Assert.Single(results, x => x.ErrorMessage == Error.none);
-        Assert.Single(results, x => x.ErrorMessage == Error.TheBookingIsAlreadyOnHold);
+        Assert.Single(results, x => x.ErrorMessage == Error.BookingSlotAlreadyOnHold);
     }
 
 

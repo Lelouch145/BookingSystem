@@ -29,5 +29,14 @@ public enum Error
     CannotRescheduleBooking24HoursBeforeTheBooking,
     TheBookingIsAlreadyOnHold,
     HoldServiceUnavailable,
-    HoldExpirationTimeUnavailable
+    HoldExpirationTimeUnavailable,
+    CouldNotDeserializeJson,
+    BookingDosentBelongToTheUser,
+    DontHaveAHold,
+    CouldNotGetOldBookingSlots,
+    UserDosentHaveAnActiveHold,
+    HoldDataHasChanged,
+    OldSlotsNoLongerBelongToHold,
+    UserAlreadyHasAnActiveHold,
+    BookingSlotAlreadyOnHold
 }

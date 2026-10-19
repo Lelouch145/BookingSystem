@@ -51,7 +51,7 @@ public class RegisterServiceTest : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var roleExist = await roleManager.RoleExistsAsync("User");
         if (!roleExist)
         {
-            var createRole = roleManager.CreateAsync(new IdentityRole("User"));
+            var createRole = await roleManager.CreateAsync(new IdentityRole("User"));
         }
 
         var result = await service.Register("Test@gmail.com", "Test_123", "Test.password123");

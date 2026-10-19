@@ -123,7 +123,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var slots = await dbContext.BookingSlots.Where(x => x.BookingId == booking.Id)
             .OrderBy(x => x.SlotStart)
             .ToListAsync();
-        Assert.True(result.Success);
+        Assert.True(result.Success, $"Reschedule failed: {System.Text.Json.JsonSerializer.Serialize(result)}");
         Assert.Equal(newStartTime, changedBooking.StartTime);
         Assert.Equal(2, slots.Count);
         Assert.Equal(newStartTime, slots[0].SlotStart);
@@ -488,7 +488,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     public async Task CancelBooking_CacheUserDelte_AdminIsDeleting()
     {
         var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
-        var date = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
+        var date = DateOnly.FromDateTime(DateTime.Today).AddDays(2);
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
         var newCourt = helper.CreateNewCourt($"Court-{Guid.NewGuid()}");

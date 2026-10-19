@@ -41,7 +41,7 @@ public class HelperUnit
     }
     public Booking NewBooking(int newCourtId, string newUserId)
     {
-        var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
+        var startTime = DateTime.Now.Date.AddDays(2).AddHours(18).AddMinutes(30);
         var endTime = startTime.AddMinutes(60);
 
         Booking booking = new Booking
