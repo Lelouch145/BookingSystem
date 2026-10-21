@@ -40,6 +40,17 @@ public class BookingHoldService
             "SwitchHold.lua"
         )
     );
+    private static readonly string ReleaseHoldScript = File.ReadAllText
+    (
+        Path.Combine
+        (
+            AppContext.BaseDirectory,
+            "Services",
+            "Caching",
+            "Scripts",
+            "ReleaseHold.lua"
+        )
+    );
 
     public BookingHoldService(BookingTimeService bookingTimeService, IConnectionMultiplexer connectionMultiplexer, AppDbContext dbContext, ILogger<BookingHoldService> logger)
     {
@@ -246,7 +257,7 @@ public class BookingHoldService
         {
             return new CreateHoldResponse
             {
-                ErrorMessage = Error.BookingDosentBelongToTheUser
+                ErrorMessage = Error.HoldBookingDosentBelongToTheUser
             };
         }
         var courtExists = await _dbContext.Courts.AnyAsync(x => x.Id == courtId && x.IsActive, cancellationToken);
@@ -321,6 +332,157 @@ public class BookingHoldService
 
         return await ExecuteHoldScriptAsync(keys, values, newHold.HoldId, SwitchHoldScript);
     }
+
+    public async Task<ReleaseHoldResponse> ReleaseHoldAsync(string userId)
+    {
+        var userHoldId = await GetRedisValueAsync(GetUserHoldIdKey(userId));
+
+        if (userHoldId.ErrorMessage != Error.none)
+        {
+           return new ReleaseHoldResponse
+           {
+               ErrorMessage = userHoldId.ErrorMessage
+           }; 
+        }
+        if(!Guid.TryParse(userHoldId.ValueRedis, out var holdId))
+        {
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = Error.UserDosentHaveAnActiveHold
+            };
+        }
+
+        var userHold = await GetRedisValueAsync(GetHoldDataKey(holdId));
+
+        if(userHold.ErrorMessage != Error.none)
+        {
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = userHold.ErrorMessage
+            };
+        }
+
+        if (userHold.ValueRedis.IsNull)
+        {
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = Error.DontHaveAHold
+            };
+        }
+
+        CacheHoldModel? hold = null;
+        try
+        {
+            hold = JsonSerializer.Deserialize<CacheHoldModel>(userHold.ValueRedis.ToString());
+        }
+        catch(JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize json getHold");
+        }
+        if(hold == null)
+        {
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = Error.CouldNotDeserializeJson
+            };
+        }
+
+        if(hold.UserId != userId || hold.HoldId != holdId)
+        {
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = Error.HoldBookingDosentBelongToTheUser
+            };
+        }
+
+        var slotCount = hold.Duration/30;
+        List<string> redisKeys = new List<string>
+        {
+            GetUserHoldIdKey(userId),
+            GetHoldDataKey(hold.HoldId) 
+        };
+
+        for(int i = 0; i < slotCount; i++)
+        {
+            var bookingTime = hold.BookingTime.AddMinutes(i * 30);
+            var slots = GetSlotHoldIdKey(hold.CourtId, hold.BookingDate, bookingTime);
+            redisKeys.Add(slots);
+        }
+
+        RedisKey[] keys = redisKeys.Select(x => (RedisKey)x).ToArray();
+
+        RedisValue[] values =
+        {
+            hold.HoldId.ToString(),
+            userHold.ValueRedis.ToString()
+        };
+
+        return await ExecuteReleaseHoldScriptAsync(keys, values);
+    }
+
+    private async Task<ReleaseHoldResponse> ExecuteReleaseHoldScriptAsync(RedisKey[] keys, RedisValue[] values)
+    {
+        try
+        {
+        
+            var database = _connectionMultiplexer.GetDatabase();
+            var generateScriptRelease = await database.ScriptEvaluateAsync(ReleaseHoldScript, keys, values);
+            var status = (int)generateScriptRelease;
+
+            if(status == 1)
+            {
+                return new ReleaseHoldResponse
+                {
+                    Success = true
+                };
+            }
+
+            var error = status switch
+            {
+                2 => Error.UserDosentHaveAnActiveHold,
+                3 => Error.HoldDataHasChanged,
+                6 => Error.OldSlotsNoLongerBelongToHold,
+                _ => Error.HoldServiceUnavailable
+            };
+
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = error
+            };
+        }
+
+        
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogError(ex, "Redis connection failed.");
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogError(ex, "Redis operation timed out.");
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisServerException ex)
+        {
+            _logger.LogError(ex, "Redis server error occurred");
+            return new ReleaseHoldResponse
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisCommandException ex)
+        {
+            _logger.LogError(ex, "Invalid Redis command.");
+            throw;
+        }
+    }
+
 
     private async Task<RedisValueReturn> GetRedisValueAsync(RedisKey redisKey)
     {

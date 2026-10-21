@@ -38,5 +38,6 @@ public enum Error
     HoldDataHasChanged,
     OldSlotsNoLongerBelongToHold,
     UserAlreadyHasAnActiveHold,
-    BookingSlotAlreadyOnHold
+    BookingSlotAlreadyOnHold,
+    HoldBookingDosentBelongToTheUser
 }
