@@ -19,6 +19,7 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using StackExchange.Redis;
 using BookingSystem.Api.Services.Caching;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using BookingSystem.Api.Services.interfaces;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -96,6 +97,7 @@ builder.Services.AddScoped<BookingCompletionService>();
 builder.Services.AddHostedService<BookingCompletionBackgroundService>();
 builder.Services.AddScoped<BookingTimeService>();
 builder.Services.AddScoped<AvailabilityService>();
+builder.Services.AddScoped<IBookingHoldService, BookingHoldService>();
 var jwtKey = builder.Configuration["JWT:KEY"]
     ?? throw new InvalidOperationException("JWT key is missing");
 

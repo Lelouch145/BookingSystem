@@ -5,6 +5,7 @@ using System.Text.Json;
 using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
+using BookingSystem.Api.Services.interfaces;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
@@ -12,7 +13,7 @@ using StackExchange.Redis;
 
 namespace BookingSystem.Api.Services.Caching;
 
-public class BookingHoldService
+public class BookingHoldService : IBookingHoldService
 {
     private readonly BookingTimeService _bookingTimeService;
     private readonly IConnectionMultiplexer _connectionMultiplexer;
@@ -49,6 +50,17 @@ public class BookingHoldService
             "Caching",
             "Scripts",
             "ReleaseHold.lua"
+        )
+    );
+    private static readonly string GetValidateHoldScript = File.ReadAllText
+    (
+        Path.Combine
+        (
+            AppContext.BaseDirectory,
+            "Services",
+            "Caching",
+            "Scripts",
+            "GetValidateHoldScript.lua"
         )
     );
 
@@ -515,6 +527,163 @@ public class BookingHoldService
         {
             _logger.LogError(ex, "Redis server error.");
             return new RedisValueReturn
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisCommandException ex)
+        {
+            _logger.LogError(ex, "Invalid Redis command.");
+            throw;
+        }
+
+
+    }
+
+    public async Task<CacheHoldResponse> GetValidateHoldAsync(string userId)
+    {
+        var userHoldId = await GetRedisValueAsync(GetUserHoldIdKey(userId));
+        if(userHoldId.ErrorMessage != Error.none)
+        {
+            return new CacheHoldResponse
+            {
+                ErrorMessage = userHoldId.ErrorMessage
+            };
+        }
+        
+        if(!Guid.TryParse(userHoldId.ValueRedis, out var holdId))
+        {
+            return new CacheHoldResponse
+            {
+                ErrorMessage = Error.UserDosentHaveAnActiveHold
+            };
+        }
+        var getHoldJson = await GetRedisValueAsync(GetHoldDataKey(holdId));
+        if(getHoldJson.ErrorMessage != Error.none)
+        {
+            return new CacheHoldResponse
+            {
+                ErrorMessage = getHoldJson.ErrorMessage
+            };
+        }
+        else if (getHoldJson.ValueRedis.IsNull)
+        {
+            return new CacheHoldResponse
+            {
+                ErrorMessage = Error.DontHaveAHold
+            };
+        }
+        CacheHoldModel? getHold = null;
+        try
+        {
+            getHold = JsonSerializer.Deserialize<CacheHoldModel>(getHoldJson.ValueRedis.ToString());
+        }
+        catch(JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize json for bookings");
+        }
+        if(getHold == null)
+        {
+            return new CacheHoldResponse
+            {
+                ErrorMessage = Error.DontHaveAHold
+            };
+        }
+        
+        if(userId != getHold.UserId || holdId != getHold.HoldId)
+        {
+            return new CacheHoldResponse
+            {
+                ErrorMessage = Error.HoldBookingDosentBelongToTheUser
+            };
+        }
+        var dateTime = getHold.BookingDate.ToDateTime(getHold.BookingTime);
+        var validateBooking = _bookingTimeService.ValidateBookingTime(dateTime, getHold.Duration);
+
+        if(validateBooking != Error.none)
+        {
+            return new CacheHoldResponse
+            {
+                ErrorMessage = validateBooking
+            };
+        }
+        
+        List<string> rediskeys = new List<string>
+        {
+            GetUserHoldIdKey(userId),
+            GetHoldDataKey(holdId)
+        };
+        var slotCount = getHold.Duration / 30;
+        for(int i = 0; i < slotCount; i++)
+        {
+            var startTime = getHold.BookingTime.AddMinutes(i * 30);
+            var slotKey = GetSlotHoldIdKey(getHold.CourtId, getHold.BookingDate, startTime);
+            rediskeys.Add(slotKey);
+        }
+        RedisKey[] keys = rediskeys.Select(x => (RedisKey)x).ToArray();
+
+        RedisValue[] values =
+        {
+            getHold.HoldId.ToString(),
+            getHoldJson.ValueRedis.ToString()
+        };
+
+        return await ExecuteValidateHoldScriptAsync(keys, values, getHold);
+        
+    }
+
+    private async Task<CacheHoldResponse> ExecuteValidateHoldScriptAsync(RedisKey[] keys, RedisValue[] values, CacheHoldModel hold)
+    {
+        try
+        {
+        
+            var database = _connectionMultiplexer.GetDatabase();
+            var generateScriptRelease = await database.ScriptEvaluateAsync(GetValidateHoldScript, keys, values);
+            var status = (int)generateScriptRelease;
+
+            if(status == 1)
+            {
+                return new CacheHoldResponse
+                {
+                    CacheHold = hold
+                };
+            }
+
+            var error = status switch
+            {
+                2 => Error.UserDosentHaveAnActiveHold,
+                3 => Error.HoldDataHasChanged,
+                6 => Error.OldSlotsNoLongerBelongToHold,
+                _ => Error.HoldServiceUnavailable
+            };
+
+            return new CacheHoldResponse
+            {
+                ErrorMessage = error
+            };
+        }
+
+        
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogError(ex, "Redis connection failed.");
+            return new CacheHoldResponse
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogError(ex, "Redis operation timed out.");
+            return new CacheHoldResponse
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisServerException ex)
+        {
+            _logger.LogError(ex, "Redis server error occurred");
+            return new CacheHoldResponse
             {
                 ErrorMessage = Error.HoldServiceUnavailable
             };
