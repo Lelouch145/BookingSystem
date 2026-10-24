@@ -4,7 +4,6 @@ public enum Error
 {
     none,
     InvalidCourtName,
-    CourtsDatabaseIsEmpty,
     CouldNotFindTheCourtInDataBase,
     CourtAlreadyExists,
     CourtIsAlreadyInActive,

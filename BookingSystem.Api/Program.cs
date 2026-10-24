@@ -20,6 +20,7 @@ using StackExchange.Redis;
 using BookingSystem.Api.Services.Caching;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using BookingSystem.Api.Services.interfaces;
+using BookingSystem.Api.Helper;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -169,14 +170,11 @@ app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string 
 {
     var result = await court.CreateCourt(courtName, description, cancellationToken);
 
-    if (result.ErrorMessage == Error.InvalidCourtName)
+    if(result.ErrorMessage != Error.none)
     {
-        return Results.BadRequest(result.ErrorMessage);
+        return ErrorMessageHandler.MapError(result.ErrorMessage);
     }
-    else if (result.ErrorMessage == Error.CourtAlreadyExists)
-    {
-        return Results.Conflict(result.ErrorMessage);
-    }
+
     return Results.Ok(result);
 }).RequireAuthorization(RoleNames.Admin);
 
@@ -208,18 +206,13 @@ app.MapGet("Courts/Schedule", async (AvailabilityService scheduleService, Cancel
 
 app.MapPatch("Courts/{courtName}/disable", async (CourtService disableCourt, string courtName, CancellationToken cancellationToken) =>
 {
-
-
     var result = await disableCourt.DisableCourt(courtName, cancellationToken);
 
-    if (result.ErrorMessage == Error.CouldNotFindTheCourtInDataBase)
+    if(result.ErrorMessage != Error.none)
     {
-        return Results.NotFound(result.ErrorMessage);
+        return ErrorMessageHandler.MapError(result.ErrorMessage);
     }
-    else if(result.ErrorMessage == Error.CourtIsAlreadyInActive)
-    {
-        return Results.Conflict(result.ErrorMessage);
-    }
+
     return Results.Ok(result);
 }).RequireAuthorization(RoleNames.Admin);
 
@@ -228,17 +221,9 @@ app.MapPut("Courts/{courtName}/update", async (CourtService courtUpdate, string 
 
 
     var result = await courtUpdate.UpdateCourt(findCourt, courtName, description, IsActive, cancellationToken);
-    if (result.ErrorMessage == Error.InvalidCourtName)
+    if(result.ErrorMessage != Error.none)
     {
-        return Results.BadRequest(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.CouldNotFindTheCourtInDataBase)
-    {
-        return Results.NotFound(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.CourtAlreadyExists)
-    {
-        return Results.Conflict(result.ErrorMessage);
+        return ErrorMessageHandler.MapError(result.ErrorMessage);
     }
     return Results.Ok();
 }).RequireAuthorization(RoleNames.Admin);
@@ -272,6 +257,24 @@ app.MapPost("Login", async (LoginService services, LoginRequest request) =>
     }
 });
 
+app.MapPost("/CreateHolds", async (IBookingHoldService holdService, DateOnly date, TimeOnly bookingTIme, int duration, int courtId, ClaimsPrincipal user, CancellationToken cancellationToken) =>
+{
+    var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
+
+    if(userIdClaim == null)
+    {
+        return Results.Unauthorized();
+    }
+
+    string userId = userIdClaim.Value;
+
+    var createHold = await holdService.CreateHoldAsync(date, bookingTIme, duration, courtId, userId, cancellationToken);
+    if(createHold.ErrorMessage != Error.none)
+    {
+        return ErrorMessageHandler.MapError(createHold.ErrorMessage);
+    }
+    return Results.Ok(createHold);
+}).RequireAuthorization();
 app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int courtId, DateTime startTime, int duration, ClaimsPrincipal user, CancellationToken cancellationToken) =>
 {
 
@@ -285,25 +288,9 @@ app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int
 
     var result = await booking.CreateBooking(courtId, startTime, duration, userId, cancellationToken);
 
-    if (result.ErrorMessage == Error.CouldNotFindTheCourtInDataBase)
+    if(result.ErrorMessage != Error.none)
     {
-        return Results.NotFound(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.CourtIsNotAvailable)
-    {
-        return Results.BadRequest(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.BookingTimeIsOverlappingWithAnotherBooking)
-    {
-        return Results.BadRequest(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.InvalidDuration)
-    {
-        return Results.BadRequest(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.BookingCannotBeInThePast)
-    {
-        return Results.BadRequest(result.ErrorMessage);
+        return ErrorMessageHandler.MapError(result.ErrorMessage);
     }
     return Results.Ok(result);
 
@@ -346,25 +333,9 @@ app.MapPatch("Booking/Cancel", async (ClaimsPrincipal user, BookingService booki
 
     var resultUser = await booking.CancelBooking(userId, bookingId, cancellationToken, isAdmin);
 
-    if (resultUser.ErrorMessage == Error.BookingNotFound)
+    if(resultUser.ErrorMessage != Error.none)
     {
-        return Results.NotFound(resultUser.ErrorMessage);
-    }
-    else if (resultUser.ErrorMessage == Error.BookingIsAlreadyCancelled)
-    {
-        return Results.BadRequest(resultUser.ErrorMessage);
-    }
-    else if (resultUser.ErrorMessage == Error.BookingIsCompletedAndCannotBeCancelled)
-    {
-        return Results.BadRequest(resultUser.ErrorMessage);
-    }
-    else if (resultUser.ErrorMessage == Error.CannotCancelBooking24HoursBeforeTheBooking)
-    {
-        return Results.BadRequest(resultUser.ErrorMessage);
-    }
-    else if(resultUser.ErrorMessage == Error.BookingWasModifiedByAnotherRequest)
-    {
-        return Results.Conflict(resultUser);
+        return ErrorMessageHandler.MapError(resultUser.ErrorMessage);
     }
     return Results.Ok(resultUser);
 });
@@ -382,41 +353,9 @@ app.MapPatch("Booking/UpdateTime", async (ClaimsPrincipal user, BookingService b
 
     var result = await booking.RescheduleBooking(userId, bookingId, duration, newStartTime, isAdmin, cancellationToken);
 
-    if (result.ErrorMessage == Error.InvalidDuration)
+    if(result.ErrorMessage != Error.none)
     {
-        return Results.BadRequest(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.BookingIsCancelledAndCannotBeChanged)
-    {
-        return Results.Conflict(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.BookingIsCompletedAndCannotBeChanged)
-    {
-        return Results.Conflict(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.BookingTimeIsNotAvailable)
-    {
-        return Results.BadRequest(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.BookingTimeIsOverlappingWithAnotherBooking)
-    {
-        return Results.Conflict(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.BookingNotFound)
-    {
-        return Results.NotFound(result.ErrorMessage);
-    }
-    else if (result.ErrorMessage == Error.UserDoesNotOwnBooking)
-    {
-        return Results.Forbid();
-    }
-    else if (result.ErrorMessage == Error.BookingCannotBeInThePast)
-    {
-        return Results.BadRequest(result.ErrorMessage);
-    }
-    else if(result.ErrorMessage == Error.BookingWasModifiedByAnotherRequest)
-    {
-        return Results.Conflict(result.ErrorMessage);
+        return ErrorMessageHandler.MapError(result.ErrorMessage);
     }
     return Results.Ok(result);
 }).RequireAuthorization();
