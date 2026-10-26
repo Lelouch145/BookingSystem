@@ -51,4 +51,21 @@ public class RedisHelper
         var createHold = await service.CreateHoldAsync(date, bookingTime, duration, newCourt.Id, newUser.Id, CancellationToken.None);
         return (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold);
     }
+    public string GetSlotHoldIdKey(int courtId, DateOnly date, TimeOnly slotStart)
+    {
+        return $"hold:slot:{courtId}:{date:yyyy-MM-dd}:{slotStart:HH:mm}";
+
+    }
+    public string GetUserHoldIdKey(string userId)
+    {
+        return $"hold:user:{userId}";
+    }
+    public string GetHoldDataKey(Guid holdId)
+    {
+        return $"hold:{holdId}";
+    }
+    public string GetFinalizingKey(Guid holdId)
+    {
+        return $"hold:finalizing:{holdId}";
+    }
 }

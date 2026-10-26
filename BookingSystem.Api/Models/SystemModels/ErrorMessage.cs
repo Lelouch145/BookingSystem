@@ -40,5 +40,6 @@ public enum Error
     BookingSlotAlreadyOnHold,
     HoldBookingDosentBelongToTheUser,
     BookingHoldNotFound,
-    HoldFinalizationInProgress
+    HoldFinalizationInProgress,
+    FinalizationLockMismatch
 }
