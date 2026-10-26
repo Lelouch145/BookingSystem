@@ -1,4 +1,7 @@
 
+if redis.call('EXISTS', KEYS[#KEYS]) == 1 then
+    return {9,0}
+end
     -- User already has an active hold
     if redis.call('EXISTS', KEYS[1]) == 1 then
         return {7, 0}
@@ -22,7 +25,7 @@
     redis.call('SET', KEYS[2], ARGV[2], 'EX', 300)
 
     -- Reserve booking slots
-    for i = 3, #KEYS do
+    for i = 3, #KEYS - 1 do
         redis.call('SET', KEYS[i], ARGV[1], 'EX', 300)
     end
 

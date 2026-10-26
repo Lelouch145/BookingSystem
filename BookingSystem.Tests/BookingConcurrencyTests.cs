@@ -2,6 +2,7 @@ using System.Formats.Asn1;
 using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
+using BookingSystem.Api.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
@@ -36,6 +37,11 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     public async Task TransactionTest()
     {
         var (helper, dbContext, secondDbContext, cache, logger, bookingTimeService, bookingTimeServiceSecond) = CreateSetup();
+        var redisIntegrationHelper = new RedisIntegrationHelper();
+        var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
+        var loggerHold = NullLogger<BookingHoldService>.Instance;
+        var holdService = new BookingHoldService(bookingTimeService, connection, dbContext, loggerHold);
+        var holdServiceSecond = new BookingHoldService(bookingTimeService, connection, secondDbContext, loggerHold);
 
         Court newCourt = new Court
         {
@@ -56,8 +62,8 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         };
         dbContext.Users.AddRange(testUser, testUser2);
         await dbContext.SaveChangesAsync();
-        BookingService bookingService = new BookingService(dbContext, bookingTimeService, cache, logger);
-        BookingService secondBookingService = new BookingService(secondDbContext, bookingTimeServiceSecond, cache, logger);
+        BookingService bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        BookingService secondBookingService = new BookingService(secondDbContext, bookingTimeServiceSecond, cache, logger, holdServiceSecond);
         var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
         var CreateBooking = bookingService.CreateBooking(newCourt.Id, startTime, 60, testUser.Id, CancellationToken.None);
         var secondCreateBooking = secondBookingService.CreateBooking(newCourt.Id, startTime, 60, testUser2.Id, CancellationToken.None);
@@ -81,7 +87,7 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         var dbContextService = new HelperUnit();
         var dbContext = dbContextService.DbContextHellper();
         var secondDbContext = dbContextService.DbContextHellper();
-   
+        
 
         Court newCourt = new Court
         {
@@ -124,6 +130,13 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     public async Task CancelBookingConcurrency()
     {
         var (helper, dbContext, secondDbContext, cache, logger, bookingTimeService, _) = CreateSetup();
+
+        var redisIntegrationHelper = new RedisIntegrationHelper();
+        var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
+        var loggerHold = NullLogger<BookingHoldService>.Instance;
+        var holdService = new BookingHoldService(bookingTimeService, connection, dbContext, loggerHold);
+        var holdServiceSecond = new BookingHoldService(bookingTimeService, connection, secondDbContext, loggerHold);
+
         Court newCourt = new Court
         {
             CourtName = $"Court-{Guid.NewGuid()}",
@@ -150,8 +163,8 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger);
-        var secondService = new BookingService(secondDbContext, bookingTimeService, cache, logger);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var secondService = new BookingService(secondDbContext, bookingTimeService, cache, logger, holdServiceSecond);
         var bookingB = await secondDbContext.Bookings.FirstAsync(x => x.Id == newBooking.Id);
         var firstTask = service.CancelBooking(newUser.Id, newBooking.Id, CancellationToken.None, false);
         var secondTask = secondService.CancelBooking(newUser.Id, newBooking.Id, CancellationToken.None, false);
@@ -174,6 +187,12 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
     {
         var (helper, dbContext, secondDbContext, cache, logger, bookingTimeService, bookingTimeServiceSecond) = CreateSetup();
 
+        var redisIntegrationHelper = new RedisIntegrationHelper();
+        var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
+        var loggerHold = NullLogger<BookingHoldService>.Instance;
+        var holdService = new BookingHoldService(bookingTimeService, connection, dbContext, loggerHold);
+        var holdServiceSecond = new BookingHoldService(bookingTimeService, connection, secondDbContext, loggerHold);
+
         Court newCourt = new Court
         {
             CourtName = $"Court-{Guid.NewGuid()}",
@@ -200,8 +219,8 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger);
-        var secondService = new BookingService(secondDbContext, bookingTimeServiceSecond, cache, logger);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var secondService = new BookingService(secondDbContext, bookingTimeServiceSecond, cache, logger, holdServiceSecond);
         var newStartTime = DateTime.Now.Date.AddDays(3).AddHours(15).AddMinutes(30);
 
         var bookingB = await secondDbContext.Bookings.FirstAsync(x => x.Id == newBooking.Id);

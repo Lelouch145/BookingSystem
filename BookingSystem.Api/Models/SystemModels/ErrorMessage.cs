@@ -38,5 +38,7 @@ public enum Error
     OldSlotsNoLongerBelongToHold,
     UserAlreadyHasAnActiveHold,
     BookingSlotAlreadyOnHold,
-    HoldBookingDosentBelongToTheUser
+    HoldBookingDosentBelongToTheUser,
+    BookingHoldNotFound,
+    HoldFinalizationInProgress
 }

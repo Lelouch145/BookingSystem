@@ -214,6 +214,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
             bookingSlotsOld.Add(oldKey);
         }
         redisKey.AddRange(bookingSlotsOld);
+        redisKey.Add(GetFinalizingKey(createHold.HoldId));
 
         RedisKey[] keys = redisKey.Select(x => (RedisKey)x).ToArray();
 
@@ -245,5 +246,9 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     private string GetUserHoldIdKey(string userId)
     {
         return $"hold:user:{userId}";
+    }
+    public string GetFinalizingKey(Guid holdId)
+    {
+        return $"hold:finalizing:{holdId}";
     }
 }

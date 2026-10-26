@@ -63,6 +63,18 @@ public class BookingHoldService : IBookingHoldService
             "GetValidateHoldScript.lua"
         )
     );
+    private static readonly string BeginFinalizationScript = File.ReadAllText
+    (
+        Path.Combine
+        (
+            AppContext.BaseDirectory,
+            "Services",
+            "Caching",
+            "Scripts",
+            "BeginFinalization.lua"
+        )
+    );
+
 
     public BookingHoldService(BookingTimeService bookingTimeService, IConnectionMultiplexer connectionMultiplexer, AppDbContext dbContext, ILogger<BookingHoldService> logger)
     {
@@ -122,7 +134,7 @@ public class BookingHoldService : IBookingHoldService
             var key = GetSlotHoldIdKey(courtId, date, startTime);
             redisKeys.Add(key);
         }
-
+        redisKeys.Add(GetFinalizingKey(hold.HoldId));
         RedisKey[] keys = redisKeys.Select(x => (RedisKey)x).ToArray();
 
         RedisValue[] values =
@@ -172,6 +184,7 @@ public class BookingHoldService : IBookingHoldService
                 6 => Error.OldSlotsNoLongerBelongToHold,
                 7 => Error.UserAlreadyHasAnActiveHold,
                 8 => Error.HoldServiceUnavailable,
+                9 => Error.HoldFinalizationInProgress,
                 _ => Error.HoldServiceUnavailable
             };
 
@@ -331,7 +344,7 @@ public class BookingHoldService : IBookingHoldService
             bookingSlotsOld.Add(oldKey);
         }
         redisKey.AddRange(bookingSlotsOld);
-
+        redisKey.Add(GetFinalizingKey(holdId));
         RedisKey[] keys = redisKey.Select(x => (RedisKey)x).ToArray();
 
         RedisValue[] values =
@@ -420,7 +433,7 @@ public class BookingHoldService : IBookingHoldService
             var slots = GetSlotHoldIdKey(hold.CourtId, hold.BookingDate, bookingTime);
             redisKeys.Add(slots);
         }
-
+        redisKeys.Add(GetFinalizingKey(holdId));
         RedisKey[] keys = redisKeys.Select(x => (RedisKey)x).ToArray();
 
         RedisValue[] values =
@@ -454,6 +467,7 @@ public class BookingHoldService : IBookingHoldService
                 2 => Error.UserDosentHaveAnActiveHold,
                 3 => Error.HoldDataHasChanged,
                 6 => Error.OldSlotsNoLongerBelongToHold,
+                9 => Error.HoldFinalizationInProgress,
                 _ => Error.HoldServiceUnavailable
             };
 
@@ -620,6 +634,7 @@ public class BookingHoldService : IBookingHoldService
             var slotKey = GetSlotHoldIdKey(getHold.CourtId, getHold.BookingDate, startTime);
             rediskeys.Add(slotKey);
         }
+        
         RedisKey[] keys = rediskeys.Select(x => (RedisKey)x).ToArray();
 
         RedisValue[] values =
@@ -654,6 +669,7 @@ public class BookingHoldService : IBookingHoldService
                 2 => Error.UserDosentHaveAnActiveHold,
                 3 => Error.HoldDataHasChanged,
                 6 => Error.OldSlotsNoLongerBelongToHold,
+                9 => Error.HoldFinalizationInProgress,
                 _ => Error.HoldServiceUnavailable
             };
 
@@ -695,6 +711,166 @@ public class BookingHoldService : IBookingHoldService
         }
     }
 
+    public async Task<BeginFinalizationResponse> BeginFinalizationAsync(string userId)
+    {
+        var getHoldId = await GetRedisValueAsync(GetUserHoldIdKey(userId));
+
+        if(getHoldId.ErrorMessage != Error.none)
+        {
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = getHoldId.ErrorMessage
+            };
+        }
+
+        if(!Guid.TryParse(getHoldId.ValueRedis, out var holdId))
+        {
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = Error.UserDosentHaveAnActiveHold
+            };
+        }
+        var getHoldJson = await GetRedisValueAsync(GetHoldDataKey(holdId));
+        if(getHoldJson.ErrorMessage != Error.none)
+        {
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = getHoldJson.ErrorMessage
+            };
+        }
+        else if (getHoldJson.ValueRedis.IsNull)
+        {
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = Error.DontHaveAHold
+            };
+        }
+        CacheHoldModel? getHold = null;
+        try
+        {
+            getHold = JsonSerializer.Deserialize<CacheHoldModel>(getHoldJson.ValueRedis.ToString());
+        }
+        catch(JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize json for bookings");
+        }
+        if(getHold == null)
+        {
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = Error.DontHaveAHold
+            };
+        }
+
+        
+        if(userId != getHold.UserId || holdId != getHold.HoldId)
+        {
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = Error.HoldBookingDosentBelongToTheUser
+            };
+        }
+        var dateTime = getHold.BookingDate.ToDateTime(getHold.BookingTime);
+        var validate = _bookingTimeService.ValidateBookingTime(dateTime, getHold.Duration);
+
+        if(validate != Error.none)
+        {
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = validate
+            };
+        }
+
+        var slotCount = getHold.Duration / 30;
+        List<string> redisKeys = new List<string>
+        {
+            GetUserHoldIdKey(userId),
+            GetHoldDataKey(holdId)
+        };
+        for(int i = 0; i < slotCount; i++)
+        {
+            var startTime = getHold.BookingTime.AddMinutes(i * 30);
+            var slotKey = GetSlotHoldIdKey(getHold.CourtId, getHold.BookingDate, startTime);
+            redisKeys.Add(slotKey);
+        }
+        redisKeys.Add(GetFinalizingKey(holdId));
+        
+        var lockToken = Guid.NewGuid();
+        RedisKey[] keys = redisKeys.Select(x => (RedisKey)x).ToArray();
+        RedisValue[] values =
+        {
+            getHold.HoldId.ToString(),
+            getHoldJson.ValueRedis.ToString(),
+            lockToken.ToString()
+        };
+
+        return await BegingFinalizationScriptAsync(keys, values, lockToken);
+    }
+    private async Task<BeginFinalizationResponse> BegingFinalizationScriptAsync(RedisKey[] keys, RedisValue[] values, Guid lockTocken)
+    {
+        try
+        {
+        
+            var database = _connectionMultiplexer.GetDatabase();
+            var generateScriptRelease = await database.ScriptEvaluateAsync(BeginFinalizationScript, keys, values);
+            var status = (int)generateScriptRelease;
+
+            if(status == 1)
+            {
+                return new BeginFinalizationResponse
+                {
+                    Success = true,
+                    LockToken = lockTocken
+                };
+            }
+
+            var error = status switch
+            {
+                2 => Error.UserDosentHaveAnActiveHold,
+                3 => Error.HoldDataHasChanged,
+                5 => Error.HoldExpirationTimeUnavailable,
+                6 => Error.OldSlotsNoLongerBelongToHold,
+                9 => Error.HoldFinalizationInProgress,
+                _ => Error.HoldServiceUnavailable
+            };
+
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = error
+            };
+        }
+
+        
+        catch(RedisConnectionException ex)
+        {
+            _logger.LogError(ex, "Redis connection failed.");
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisTimeoutException ex)
+        {
+            _logger.LogError(ex, "Redis operation timed out.");
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisServerException ex)
+        {
+            _logger.LogError(ex, "Redis server error occurred");
+            return new BeginFinalizationResponse
+            {
+                ErrorMessage = Error.HoldServiceUnavailable
+            };
+        }
+        catch(RedisCommandException ex)
+        {
+            _logger.LogError(ex, "Invalid Redis command.");
+            throw;
+        }
+    }
 
     private string GetSlotHoldIdKey(int courtId, DateOnly date, TimeOnly slotStart)
     {
@@ -708,5 +884,9 @@ public class BookingHoldService : IBookingHoldService
     private string GetHoldDataKey(Guid holdId)
     {
         return $"hold:{holdId}";
+    }
+    public string GetFinalizingKey(Guid holdId)
+    {
+        return $"hold:finalizing:{holdId}";
     }
 }

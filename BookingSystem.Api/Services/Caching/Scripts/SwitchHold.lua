@@ -1,5 +1,9 @@
 local storeHoldId = redis.call('GET', KEYS[1])
 local holdKey = redis.call('GET', KEYS[2])
+
+if redis.call('EXISTS', KEYS[#KEYS]) == 1 then
+    return {9, 0}
+end
 -- Controll if the user has same holdId
 if storeHoldId ~= ARGV[1] then
     return {2, 0}
@@ -28,7 +32,7 @@ if expiresAtMs <= 0 then
 end
 
 -- Check if all old slots still belong to the existing hold
-for i = oldSlotStartIndex, #KEYS do
+for i = oldSlotStartIndex, #KEYS - 1 do
     local oldKeys = redis.call('GET', KEYS[i])
     if oldKeys ~= ARGV[1] then
         return {6, 0}
