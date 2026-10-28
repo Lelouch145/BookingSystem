@@ -40,6 +40,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Court>()
         .HasIndex(x => x.CourtName)
         .IsUnique();
+
+        builder.Entity<Booking>()
+        .HasIndex(x => x.HoldId)
+        .IsUnique();
     }
     public DbSet<Court> Courts { get; set; }
     public DbSet<Booking> Bookings { get; set; }

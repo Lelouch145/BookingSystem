@@ -104,6 +104,9 @@ namespace BookingSystem.Api.Migrations
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("HoldId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -123,6 +126,10 @@ namespace BookingSystem.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CourtId");
+
+                    b.HasIndex("HoldId")
+                        .IsUnique()
+                        .HasFilter("[HoldId] IS NOT NULL");
 
                     b.HasIndex("UserId");
 

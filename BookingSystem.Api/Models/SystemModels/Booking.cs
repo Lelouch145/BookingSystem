@@ -19,4 +19,5 @@ public class Booking
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public ICollection<BookingSlot> BookingSlots { get; set; } = new List<BookingSlot>();
     public byte[] RowVersion { get; set; } = null!;
+    public Guid? HoldId {get;set;}
 }
