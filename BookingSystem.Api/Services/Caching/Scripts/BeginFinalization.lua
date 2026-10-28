@@ -28,12 +28,13 @@ if expiresAtMs <= 0 then
     return 5
 end
 
+local lockData = cjson.encode({lockToken = ARGV[3], originalExpireAtMs = expiresAtMs})
 local time = redis.call('TIME')
 local nowMs = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
 
 local expireLimit = math.max(expiresAtMs, nowMs + 60000)
 
-redis.call('SET', KEYS[#KEYS], ARGV[3], 'PXAT', expireLimit)
+redis.call('SET', KEYS[#KEYS], lockData, 'PXAT', expireLimit)
 
 for i = 1, #KEYS - 1 do
     redis.call('PEXPIREAT', KEYS[i], expireLimit)

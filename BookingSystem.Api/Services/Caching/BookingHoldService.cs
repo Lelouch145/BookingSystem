@@ -6,6 +6,7 @@ using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services.interfaces;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
@@ -83,6 +84,17 @@ public class BookingHoldService : IBookingHoldService
             "Caching",
             "Scripts",
             "CompleteFinalization.lua"
+        )
+    );
+    private static readonly string AbortFinalizationScript = File.ReadAllText
+    (
+        Path.Combine
+        (
+            AppContext.BaseDirectory,
+            "Services",
+            "Caching",
+            "Scripts",
+            "AbortFinalization.lua"
         )
     );
 
@@ -479,6 +491,7 @@ public class BookingHoldService : IBookingHoldService
                 6 => Error.OldSlotsNoLongerBelongToHold,
                 9 => Error.HoldFinalizationInProgress,
                 10 => Error.FinalizationLockMismatch,
+                11 => Error.CouldNotDeserializeJson,
                 _ => Error.HoldServiceUnavailable
             };
 
@@ -807,12 +820,13 @@ public class BookingHoldService : IBookingHoldService
         redisKeys.Add(GetFinalizingKey(holdId));
         
         var lockToken = Guid.NewGuid();
+
         RedisKey[] keys = redisKeys.Select(x => (RedisKey)x).ToArray();
         RedisValue[] values =
         {
             getHold.HoldId.ToString(),
             getHoldJson.ValueRedis.ToString(),
-            lockToken.ToString()
+            lockToken.ToString(),
         };
 
         return await BegingFinalizationScriptAsync(keys, values, lockToken);
@@ -842,6 +856,8 @@ public class BookingHoldService : IBookingHoldService
                 5 => Error.HoldExpirationTimeUnavailable,
                 6 => Error.OldSlotsNoLongerBelongToHold,
                 9 => Error.HoldFinalizationInProgress,
+                10 => Error.FinalizationLockMismatch,
+                11 => Error.CouldNotDeserializeJson,
                 _ => Error.HoldServiceUnavailable
             };
 
@@ -967,6 +983,90 @@ public class BookingHoldService : IBookingHoldService
         
         return await ExecuteBoolResponseModelScripts(keys, values, CompleteFinalizationScript);
         
+    }
+    public async Task<BoolResponseModel> AbortFinalizationAsync(string userId, Guid? lockToken)
+    {
+        var getHoldId = await GetRedisValueAsync(GetUserHoldIdKey(userId));
+
+        if(getHoldId.ErrorMessage != Error.none)
+        {
+            return new BoolResponseModel
+            {
+                ErrorMessage = getHoldId.ErrorMessage
+            };
+        }
+
+        if(!Guid.TryParse(getHoldId.ValueRedis, out var holdId))
+        {
+            return new BoolResponseModel
+            {
+                ErrorMessage = Error.UserDosentHaveAnActiveHold
+            };
+        }
+        var getHoldJson = await GetRedisValueAsync(GetHoldDataKey(holdId));
+        if(getHoldJson.ErrorMessage != Error.none)
+        {
+            return new BoolResponseModel
+            {
+                ErrorMessage = getHoldJson.ErrorMessage
+            };
+        }
+        else if (getHoldJson.ValueRedis.IsNull)
+        {
+            return new BoolResponseModel
+            {
+                ErrorMessage = Error.DontHaveAHold
+            };
+        }
+        CacheHoldModel? getHold = null;
+        try
+        {
+            getHold = JsonSerializer.Deserialize<CacheHoldModel>(getHoldJson.ValueRedis.ToString());
+        }
+        catch(JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize json for bookings");
+        }
+        if(getHold == null)
+        {
+            return new BoolResponseModel
+            {
+                ErrorMessage = Error.DontHaveAHold
+            };
+        }
+
+        
+        if(userId != getHold.UserId || holdId != getHold.HoldId)
+        {
+            return new BoolResponseModel
+            {
+                ErrorMessage = Error.HoldBookingDosentBelongToTheUser
+            };
+        }
+
+        var slotCount = getHold.Duration / 30;
+        List<string> redisKeys = new List<string>
+        {
+            GetUserHoldIdKey(userId),
+            GetHoldDataKey(holdId)
+        };
+        for(int i = 0; i < slotCount; i++)
+        {
+            var startTime = getHold.BookingTime.AddMinutes(i * 30);
+            var slotKey = GetSlotHoldIdKey(getHold.CourtId, getHold.BookingDate, startTime);
+            redisKeys.Add(slotKey);
+        }
+        redisKeys.Add(GetFinalizingKey(holdId));
+        
+        RedisKey[] keys = redisKeys.Select(x => (RedisKey)x).ToArray();
+        RedisValue[] values =
+        {
+            getHold.HoldId.ToString(),
+            getHoldJson.ValueRedis.ToString(),
+            lockToken.ToString()
+        }; 
+
+        return await ExecuteBoolResponseModelScripts(keys, values, AbortFinalizationScript);
     }
 
     private string GetSlotHoldIdKey(int courtId, DateOnly date, TimeOnly slotStart)

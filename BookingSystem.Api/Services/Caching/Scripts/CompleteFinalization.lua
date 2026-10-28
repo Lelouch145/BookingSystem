@@ -1,4 +1,5 @@
 local finalizingKey = redis.call('GET', KEYS[#KEYS])
+
 local lockToken = ARGV[3]
 local holdId = redis.call('GET', KEYS[1])
 local userHoldId = ARGV[1]
@@ -7,9 +8,22 @@ local userHoldData = ARGV[2]
 local slotStart = 3
 local slotEnd = #KEYS - 1
 
-if finalizingKey ~= lockToken then
+if finalizingKey == false then
     return 10
 end
+
+local success, tokenJson = pcall(cjson.decode, finalizingKey)
+
+
+if not success or type(tokenJson) ~= "table" then
+    return 11
+end
+
+
+if tokenJson.lockToken ~= lockToken then
+    return 10
+end
+
 
 if holdId ~= userHoldId then
     return 2
