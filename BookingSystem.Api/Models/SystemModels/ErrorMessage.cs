@@ -41,5 +41,7 @@ public enum Error
     HoldBookingDosentBelongToTheUser,
     BookingHoldNotFound,
     HoldFinalizationInProgress,
-    FinalizationLockMismatch
+    FinalizationLockMismatch,
+    FinalizationLockTokenMissing,
+    DuplicateHoldId
 }

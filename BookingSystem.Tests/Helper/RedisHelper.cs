@@ -30,7 +30,7 @@ public class RedisHelper
         var (connection, database, _) = redisIntegrationHelper.CreateRedisSetup();
         return (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime);
     }
-        public async Task<(HelperUnit helper, AppDbContext dbContext, BookingTimeService bookingTimeService, ILogger<BookingHoldService> logger, IConnectionMultiplexer connection, IDatabase database, string courtName, Court newCourt, ApplicationUser newUser, int duration, DateOnly date, TimeOnly bookingTime,BookingHoldService service, CreateHoldResponse createHold)> CreateSetupValidate()
+    public async Task<(HelperUnit helper, AppDbContext dbContext, BookingTimeService bookingTimeService, ILogger<BookingHoldService> logger, IConnectionMultiplexer connection, IDatabase database, string courtName, Court newCourt, ApplicationUser newUser, int duration, DateOnly date, TimeOnly bookingTime,BookingHoldService service, CreateHoldResponse createHold)> CreateSetupValidate()
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
@@ -50,6 +50,15 @@ public class RedisHelper
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
         var createHold = await service.CreateHoldAsync(date, bookingTime, duration, newCourt.Id, newUser.Id, CancellationToken.None);
         return (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold);
+    }
+    public async Task<(HelperUnit helper, AppDbContext dbContext, BookingService bookingService, ApplicationUser newUser)> SetupForConfirmBooking()
+    {
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await CreateSetupValidate();
+        var bookingLogger = NullLogger<BookingService>.Instance;
+        var cache = helper.DistributedCache();
+
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, service);
+        return(helper, dbContext, bookingService, newUser);
     }
     public string GetSlotHoldIdKey(int courtId, DateOnly date, TimeOnly slotStart)
     {

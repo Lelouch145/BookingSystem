@@ -7,4 +7,5 @@ public class BeginFinalizationResponse
     public bool Success {get;set;}
     public Guid? LockToken {get;set;}
     public Error ErrorMessage {get;set;} = Error.none;
+    public CacheHoldModel? CacheHoldModel {get;set;}
 }

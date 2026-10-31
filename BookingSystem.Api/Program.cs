@@ -286,7 +286,7 @@ app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int
     }
     string userId = userIdClaim.Value;
 
-    var result = await booking.CreateBooking(courtId, startTime, duration, userId, cancellationToken);
+    var result = await booking.CreateBooking(courtId, startTime, duration, userId, cancellationToken, null);
 
     if(result.ErrorMessage != Error.none)
     {

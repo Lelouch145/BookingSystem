@@ -1,6 +1,11 @@
+using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
+using BookingSystem.Api.Services;
 using BookingSystem.Api.Services.Caching;
+using BookingSystem.Api.Services.interfaces;
 using BookingSystem.Tests;
+using Castle.Core.Logging;
+using Moq;
 
 public class CompleteFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
@@ -28,7 +33,7 @@ public class CompleteFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncL
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         Assert.True(finalizing.Success);
-        var complete = await service.CompleteFinalizationaAync(newUser.Id, finalizing.LockToken);
+        var complete = await service.CompleteFinalizationAsync(newUser.Id, finalizing.LockToken);
         Assert.Equal(Error.none, complete.ErrorMessage);
         Assert.True(complete.Success);
         var getKey = await database.StringGetAsync(GetUserHoldIdKey(newUser.Id));
@@ -43,7 +48,7 @@ public class CompleteFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncL
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         var randomLock = Guid.NewGuid();
-        var complete = await service.CompleteFinalizationaAync(newUser.Id, randomLock);
+        var complete = await service.CompleteFinalizationAsync(newUser.Id, randomLock);
         Assert.Equal(Error.FinalizationLockMismatch, complete.ErrorMessage);
         var getKey = await database.StringGetAsync(GetUserHoldIdKey(newUser.Id));
         Assert.False(getKey.IsNull);
@@ -54,7 +59,7 @@ public class CompleteFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncL
         var helperClass = new RedisHelper();
         var (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime) = await helperClass.CreateSetup();
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
-        var complete = await service.CompleteFinalizationaAync(newUser.Id, null);
+        var complete = await service.CompleteFinalizationAsync(newUser.Id, null);
         Assert.Equal(Error.UserDosentHaveAnActiveHold, complete.ErrorMessage);
     }
     [Fact]
@@ -65,7 +70,7 @@ public class CompleteFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncL
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         await database.KeyDeleteAsync(helperClass.GetSlotHoldIdKey(newCourt.Id, date, bookingTime));
-        var complete = await service.CompleteFinalizationaAync(newUser.Id, finalizing.LockToken);
+        var complete = await service.CompleteFinalizationAsync(newUser.Id, finalizing.LockToken);
         Assert.Equal(Error.OldSlotsNoLongerBelongToHold, complete.ErrorMessage);
     }
     [Fact]
@@ -76,11 +81,11 @@ public class CompleteFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncL
         var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
-        var complete = await service.CompleteFinalizationaAync(newUser.Id, finalizing.LockToken);
+        var complete = await service.CompleteFinalizationAsync(newUser.Id, finalizing.LockToken);
         Assert.Equal(Error.none, complete.ErrorMessage);
         Assert.True(complete.Success);
 
-        var secondComplete = await service.CompleteFinalizationaAync(newUser.Id, finalizing.LockToken);
+        var secondComplete = await service.CompleteFinalizationAsync(newUser.Id, finalizing.LockToken);
         Assert.Equal(Error.UserDosentHaveAnActiveHold, secondComplete.ErrorMessage);
     }
     [Fact]
@@ -91,8 +96,8 @@ public class CompleteFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncL
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
 
-        var complete = service.CompleteFinalizationaAync(newUser.Id, finalizing.LockToken);
-        var secondComplete = service.CompleteFinalizationaAync(newUser.Id, finalizing.LockToken);
+        var complete = service.CompleteFinalizationAsync(newUser.Id, finalizing.LockToken);
+        var secondComplete = service.CompleteFinalizationAsync(newUser.Id, finalizing.LockToken);
 
         var result = await Task.WhenAll(complete, secondComplete);
         Assert.Single(result, x => x.Success);

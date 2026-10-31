@@ -12,6 +12,8 @@ using System.Data;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using StackExchange.Redis;
+using BookingSystem.Api.Services.interfaces;
+using System.Net.Http.Headers;
 
 namespace BookingSystem.Api.Services;
 
@@ -31,14 +33,103 @@ public class BookingService
     private readonly BookingTimeService _bookingTimeService;
     private readonly IDistributedCache _cache;
     private readonly ILogger<BookingService> _logger;
+    private readonly IBookingHoldService _bookingHoldService;
 
-    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService, IDistributedCache cache, ILogger<BookingService> logger)
+    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService, IDistributedCache cache, ILogger<BookingService> logger, IBookingHoldService bookingHoldService)
     {
         _dbContext = dbContext;
         _bookingTimeService = bookingTimeService;
         _cache = cache;
         _logger = logger;
+        _bookingHoldService = bookingHoldService;
 
+    }
+
+
+    public async Task<BookingResult> ConfirmBookingHold(string userId, CancellationToken cancellationToken)
+    {
+        var finalizing = await _bookingHoldService.BeginFinalizationAsync(userId);
+        if(!finalizing.Success || finalizing.ErrorMessage != Error.none)
+        {
+            return new BookingResult
+            {
+                ErrorMessage = finalizing.ErrorMessage
+            };
+        }
+        if (!finalizing.LockToken.HasValue)
+        {
+            return new BookingResult
+            {
+                ErrorMessage = Error.FinalizationLockTokenMissing
+            };
+        }
+
+        var hold = finalizing.CacheHoldModel;
+        if(hold == null)
+        {
+            var abort = await _bookingHoldService.AbortFinalizationAsync(userId, finalizing.LockToken);
+            if(abort.ErrorMessage != Error.none || !abort.Success)
+            {
+                _logger.LogError("AbortFinalization failed: {Error}", abort.ErrorMessage);
+            }
+            return new BookingResult
+            {
+                ErrorMessage = Error.BookingHoldNotFound
+            };
+        }
+        var holdDateTime = hold.BookingDate.ToDateTime(hold.BookingTime);
+
+        BookingResult createBooking;
+        try
+        {
+            createBooking = await CreateBooking(hold.CourtId, holdDateTime, hold.Duration, hold.UserId, cancellationToken, hold.HoldId);
+        }
+        catch(OperationCanceledException ex)
+        {
+            _logger.LogInformation(ex, "Booking creation was cancelled");
+            throw;
+        }
+        catch(Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during booking creation");
+            throw;
+        }
+
+        if(createBooking.ErrorMessage != Error.none || !createBooking.Success)
+        {
+            var abort = await _bookingHoldService.AbortFinalizationAsync(userId, finalizing.LockToken);
+            if(abort.ErrorMessage != Error.none || !abort.Success)
+            {
+                _logger.LogError("AbortFinalization failed: {Error}", abort.ErrorMessage);
+                return new BookingResult
+                {
+                    ErrorMessage = createBooking.ErrorMessage,
+                    AbortErrorMessage = abort.ErrorMessage
+                };
+            }
+            return new BookingResult
+            {
+                ErrorMessage = createBooking.ErrorMessage
+            };
+        }
+        var completeHold = await _bookingHoldService.CompleteFinalizationAsync(userId, finalizing.LockToken);
+        if(completeHold.ErrorMessage == Error.HoldServiceUnavailable && !completeHold.Success)
+        {
+            var completeHoldAgain = await _bookingHoldService.CompleteFinalizationAsync(userId, finalizing.LockToken);
+            if(completeHoldAgain.ErrorMessage != Error.none || !completeHoldAgain.Success)
+            {
+                _logger.LogError("CompleteFinalization failed: {Error}", completeHoldAgain.ErrorMessage);
+            }
+        }
+        else if(completeHold.ErrorMessage != Error.none || !completeHold.Success)
+        {
+            _logger.LogError("CompleteFinalization failed: {Error}", completeHold.ErrorMessage);
+        }
+        return new BookingResult
+        {
+            Success = true,
+            ClientBooking = createBooking.ClientBooking
+        };
     }
     
 /// <summary>
@@ -53,7 +144,7 @@ public class BookingService
 /// <param name="userId">The ID of the user creating the booking</param>
 /// <param name="cancellationToken">Token used to cancel the operation</param>
 /// <returns>A result containing the created booking or an error.</returns>
-    public async Task<BookingResult> CreateBooking(int courtId, DateTime startTime, int duration, string userId, CancellationToken cancellationToken)
+    public async Task<BookingResult> CreateBooking(int courtId, DateTime startTime, int duration, string userId, CancellationToken cancellationToken, Guid? holdId)
     {
 
         var validationError = _bookingTimeService.ValidateBookingTime(startTime, duration);
@@ -105,7 +196,8 @@ public class BookingService
             EndTime = endTime,
             Status = BookingStatus.Confirmed,
             CreatedAt = DateTime.UtcNow,
-            BookingSlots = bookingSlots
+            BookingSlots = bookingSlots,
+            HoldId = holdId
 
         };
         _dbContext.Bookings.Add(booking);
@@ -118,12 +210,23 @@ public class BookingService
         catch(DbUpdateException ex)
         {
             await transaction.RollbackAsync();
-            if (ex.InnerException is SqlException sqlException && (sqlException.Number == 2601 || sqlException.Number == 2627))
+            if (ex.InnerException is SqlException sqlException && sqlException.Number is 2601 or 2627)
             {
-                return new BookingResult
+                if (sqlException.Message.Contains("IX_Bookings_HoldId"))
                 {
-                    ErrorMessage = Error.BookingTimeIsOverlappingWithAnotherBooking
-                };
+                    return new BookingResult
+                    {
+                        ErrorMessage = Error.DuplicateHoldId
+                    };
+                }
+                if (sqlException.Message.Contains("IX_BookingSlots_CourtId_SlotStart"))
+                {
+                    return new BookingResult
+                    {
+                        ErrorMessage = Error.BookingTimeIsOverlappingWithAnotherBooking
+                    };
+                }
+
             }
 
             throw;

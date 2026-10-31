@@ -65,8 +65,8 @@ public class BookingConcurrencyTests : IClassFixture<DatabaseFixture>, IAsyncLif
         BookingService bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
         BookingService secondBookingService = new BookingService(secondDbContext, bookingTimeServiceSecond, cache, logger, holdServiceSecond);
         var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
-        var CreateBooking = bookingService.CreateBooking(newCourt.Id, startTime, 60, testUser.Id, CancellationToken.None);
-        var secondCreateBooking = secondBookingService.CreateBooking(newCourt.Id, startTime, 60, testUser2.Id, CancellationToken.None);
+        var CreateBooking = bookingService.CreateBooking(newCourt.Id, startTime, 60, testUser.Id, CancellationToken.None, null);
+        var secondCreateBooking = secondBookingService.CreateBooking(newCourt.Id, startTime, 60, testUser2.Id, CancellationToken.None, null);
 
         var results = await Task.WhenAll(CreateBooking, secondCreateBooking);
 

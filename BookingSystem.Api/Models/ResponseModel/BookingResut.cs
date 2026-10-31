@@ -9,4 +9,5 @@ public class BookingResult
     public bool Success { get; set; }
     public BookingClient ClientBooking { get; set; } = new BookingClient();
     public Error ErrorMessage { get; set; } = Error.none;
+    public Error? AbortErrorMessage {get;set;}
 }

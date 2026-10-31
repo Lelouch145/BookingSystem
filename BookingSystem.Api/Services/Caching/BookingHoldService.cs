@@ -829,9 +829,9 @@ public class BookingHoldService : IBookingHoldService
             lockToken.ToString(),
         };
 
-        return await BegingFinalizationScriptAsync(keys, values, lockToken);
+        return await BegingFinalizationScriptAsync(keys, values, lockToken, getHold);
     }
-    private async Task<BeginFinalizationResponse> BegingFinalizationScriptAsync(RedisKey[] keys, RedisValue[] values, Guid lockTocken)
+    private async Task<BeginFinalizationResponse> BegingFinalizationScriptAsync(RedisKey[] keys, RedisValue[] values, Guid lockTocken, CacheHoldModel? hold)
     {
         try
         {
@@ -845,7 +845,8 @@ public class BookingHoldService : IBookingHoldService
                 return new BeginFinalizationResponse
                 {
                     Success = true,
-                    LockToken = lockTocken
+                    LockToken = lockTocken,
+                    CacheHoldModel = hold
                 };
             }
 
@@ -899,7 +900,7 @@ public class BookingHoldService : IBookingHoldService
         }
     }
 
-    public async Task<BoolResponseModel> CompleteFinalizationaAync(string userId, Guid? lockToken)
+    public async Task<BoolResponseModel> CompleteFinalizationAsync(string userId, Guid? lockToken)
     {
       var getHoldId = await GetRedisValueAsync(GetUserHoldIdKey(userId));
 
