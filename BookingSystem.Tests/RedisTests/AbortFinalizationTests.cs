@@ -27,7 +27,7 @@ public class AbortFinalizationtests : IClassFixture<DatabaseFixture>, IAsyncLife
     public async Task AbortFinalization_Success()
     {     
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, _ , _, _, _, newUser, _, _, _, service, _, _ ) = await helperClass.CreateSetupValidate();
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
 
@@ -40,7 +40,7 @@ public class AbortFinalizationtests : IClassFixture<DatabaseFixture>, IAsyncLife
     public async Task AbortFinalization_WrongLockToken()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, _ , _, _, _, newUser, _, _, _, service, _, _ ) = await helperClass.CreateSetupValidate();
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         Assert.True(finalizing.LockToken.HasValue);
@@ -53,7 +53,7 @@ public class AbortFinalizationtests : IClassFixture<DatabaseFixture>, IAsyncLife
     public async Task AbortFinalization_NoActiveHold()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, _, _, _, newUser, _, _, _, _) = await helperClass.CreateSetup();
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
@@ -64,7 +64,7 @@ public class AbortFinalizationtests : IClassFixture<DatabaseFixture>, IAsyncLife
     public async Task AbortFinalization_RestoreOriginalTTL()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, _ , database, _, _, newUser, _, _, _, service, createHold, _ ) = await helperClass.CreateSetupValidate();
 
         await database.KeyExpireAsync(GetHoldDataKey(createHold.HoldId), TimeSpan.FromSeconds(40));
 
@@ -81,7 +81,7 @@ public class AbortFinalizationtests : IClassFixture<DatabaseFixture>, IAsyncLife
     public async Task AbortFinalization_OriginalTTLExpired()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate(); 
+        var (_, _, _, _, _ , database, _, _, newUser, _, _, _, service, createHold, _ ) = await helperClass.CreateSetupValidate(); 
 
         await database.KeyExpireAsync(GetHoldDataKey(createHold.HoldId), TimeSpan.FromSeconds(3));
 
@@ -98,7 +98,7 @@ public class AbortFinalizationtests : IClassFixture<DatabaseFixture>, IAsyncLife
     public async Task AbortFinalization_ConcurrentRequests()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, _ ) = await helperClass.CreateSetupValidate();
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
 

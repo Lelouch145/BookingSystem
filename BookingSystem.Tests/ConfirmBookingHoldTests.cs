@@ -1,11 +1,15 @@
+using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using BookingSystem.Api.Services.Caching;
+using BookingSystem.Api.Services.CustomExceptions;
 using BookingSystem.Api.Services.interfaces;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.VisualBasic;
 using Moq;
 
 namespace BookingSystem.Tests;
@@ -45,12 +49,12 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
     {
         var helperClass = new RedisHelper();
 
-        var (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime) = await helperClass.CreateSetup();
+        var (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, dbContextFactory) = await helperClass.CreateSetup();
         var cache = helper.DistributedCache();
         var loggerBookingService = NullLogger<BookingService>.Instance;
         var holdService = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, loggerBookingService, holdService);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, loggerBookingService, holdService, dbContextFactory);
 
         var confirmBooking = await bookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None);
 
@@ -60,14 +64,14 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
     public async Task ConfirmBookingHold_OverlappingBooking()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, dbContextFactory ) = await helperClass.CreateSetupValidate();
         Assert.Equal(Error.none, createHold.ErrorMessage);
         var cache = helper.DistributedCache();
         var bookingLogger = NullLogger<BookingService>.Instance;
         var dateTime = date.ToDateTime(bookingTime);
 
         await database.KeyExpireAsync(GetHoldDataKey(createHold.HoldId), TimeSpan.FromSeconds(30));
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, service);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, service, dbContextFactory);
         var createBooking = await bookingService.CreateBooking(newCourt.Id, dateTime, duration, newUser.Id, CancellationToken.None, null);
         Assert.Equal(Error.none, createBooking.ErrorMessage);
         var confirmBooking = await bookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None);
@@ -81,12 +85,12 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
     public async Task ConfirmBookingHold_ConcurrentRequests()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, dbContextFactory ) = await helperClass.CreateSetupValidate();
         var cache = helper.DistributedCache();
         var secondDbContext = helper.DbContextHellper();
         var bookingServiceLogger = NullLogger<BookingService>.Instance;
-        var firstBookingService = new BookingService(dbContext,bookingTimeService, cache, bookingServiceLogger, service);
-        var secondBookingService = new BookingService(secondDbContext, bookingTimeService, cache, bookingServiceLogger, service);
+        var firstBookingService = new BookingService(dbContext,bookingTimeService, cache, bookingServiceLogger, service, dbContextFactory);
+        var secondBookingService = new BookingService(secondDbContext, bookingTimeService, cache, bookingServiceLogger, service,dbContextFactory);
         
         var firstConfirm = firstBookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None);
         var secondConfirm = secondBookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None);
@@ -101,7 +105,7 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
     public async Task ConfirmBookingHold_CompleteUnavailable_Retries()
     {
         var helperClass = new RedisHelper();
-        var(helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime) = await helperClass.CreateSetup();
+        var(helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, dbContextFactory) = await helperClass.CreateSetup();
         var cache = helper.DistributedCache();
         var bookingLogger = NullLogger<BookingService>.Instance;
         var lockToken = Guid.NewGuid();
@@ -138,7 +142,7 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
             CacheHoldModel = hold
         });
 
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, holdServiceMock.Object);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, holdServiceMock.Object, dbContextFactory);
 
         var bookingConfirm = await bookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None);
         Assert.True(bookingConfirm.Success);
@@ -153,7 +157,7 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
     public async Task ConfirmBookingHold_CompleteLockMismatch_NoRetry()
     {
         var helperClass = new RedisHelper();
-        var(helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime) = await helperClass.CreateSetup();
+        var(helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, dbContextFactory) = await helperClass.CreateSetup();
         var bookingLogger = NullLogger<BookingService>.Instance;
         var cache = helper.DistributedCache();
         var hold = new CacheHoldModel
@@ -181,7 +185,7 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
             ErrorMessage = Error.FinalizationLockMismatch
         });
 
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, mockHoldService.Object);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, mockHoldService.Object, dbContextFactory);
 
         var confirmBooking = await bookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None);
 
@@ -196,7 +200,7 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
     public async Task ConfirmBookingHold_CreateBookingThrows()
     {
         var helperClass = new RedisHelper();
-        var(helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime) = await helperClass.CreateSetup();
+        var(helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, dbContextFactory) = await helperClass.CreateSetup();
         var cache = helper.DistributedCache();
         var bookingLogger = NullLogger<BookingService>.Instance;
         var hold = new CacheHoldModel
@@ -218,7 +222,7 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
             CacheHoldModel = hold
         });
 
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, bookingHoldMoq.Object);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, bookingHoldMoq.Object, dbContextFactory);
 
         await dbContext.DisposeAsync();
 
@@ -245,12 +249,12 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
     public async Task ConfirmBookingHold_DuplicateHoldId()
     {
         var helperClass = new RedisHelper();
-        var(helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime) = await helperClass.CreateSetup();
+        var(helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, dbContextFactory) = await helperClass.CreateSetup();
         var bookingLogger = NullLogger<BookingService>.Instance;
         var cache = helper.DistributedCache();
 
         var holdServiceMock = new Mock<IBookingHoldService>();
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, holdServiceMock.Object);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, holdServiceMock.Object, dbContextFactory);
 
         var dateTime = date.ToDateTime(bookingTime);
         var holdId = Guid.NewGuid();
@@ -261,16 +265,103 @@ public class ConfirmBookingHoldTests : IClassFixture<DatabaseFixture>, IAsyncLif
             .AddYears(1)
             .AddMonths(2)
             .AddDays(20)
-            .AddHours(10)
+            .AddHours(12)
             .AddMinutes(00);
         
         var createNewBooking = await bookingService.CreateBooking(newCourt.Id, dateNew, duration, newUser.Id, CancellationToken.None, holdId);
         Assert.False(createNewBooking.Success);
         Assert.Equal(Error.DuplicateHoldId, createNewBooking.ErrorMessage);
     }
+    [Fact]
+    public async Task ConfirmBookingHold_RolledBack_AbortsHold()
+    {
+        var helperClass = new RedisHelper();
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, dbContextFactory) = await helperClass.CreateSetupValidate();;
+        var cache = helper.DistributedCache();
+        var loggerBooking = NullLogger<BookingService>.Instance;
+
+        dbContext.Users.Remove(newUser);
+        await dbContext.SaveChangesAsync();
+
+
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, loggerBooking, service, dbContextFactory);
+        var ex = await Assert.ThrowsAsync<BookingTransactionException>(
+            () => bookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None)
+        );
+        Assert.Equal(BookingTransactionStatus.RolledBack, ex.TransactionStatus);
+        var exists = await database.KeyExistsAsync(GetFinalizingKey(createHold.HoldId));
+        Assert.False(exists);
+
+    }
+    [Fact]
+    public async Task ConfirmBookingHold_CommitUnknown_BookingExists()
+    {
+        var helperClass = new RedisHelper();
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, _) = await helperClass.CreateSetupValidate();;
+        var cache = helper.DistributedCache();
+        var loggerBooking = NullLogger<BookingService>.Instance;
+
+        var interceptor = new ThrowAfterCommitedInterceptor();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(dbContext.Database.GetConnectionString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        await using var interceptedContext = new AppDbContext(options);
+
+        var services = new ServiceCollection();
+
+        services.AddDbContextFactory<AppDbContext>(options => 
+            options.UseSqlServer(dbContext.Database.GetConnectionString()));
+
+        using var provider = services.BuildServiceProvider();
+
+        var dbContextFactory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        var bookingService = new BookingService(interceptedContext, bookingTimeService, cache, loggerBooking, service, dbContextFactory);
+
+        var confirmBooking = await bookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None);
+        Assert.True(confirmBooking.Success);
+    }
+    [Fact]
+    public async Task ConfirmBookingHold_CommitUnknown_BookingNotFound()
+    {
+        var helperClass = new RedisHelper();
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, _) = await helperClass.CreateSetupValidate();;
+        var cache = helper.DistributedCache();
+        var loggerBooking = NullLogger<BookingService>.Instance;
+
+        var interceptor = new ThrowBeforeCommitInterceptor();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(dbContext.Database.GetConnectionString())
+            .AddInterceptors(interceptor)
+            .Options;
+        
+        await using var interceptedContext = new AppDbContext(options);
+        
+        var services = new ServiceCollection();
+
+        services.AddDbContextFactory<AppDbContext>(options => 
+            options.UseSqlServer(dbContext.Database.GetConnectionString()));
+
+        using var provider = services.BuildServiceProvider();
+
+        var dbContextFactory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        var bookingService = new BookingService(interceptedContext, bookingTimeService, cache, loggerBooking, service, dbContextFactory);
+
+        var ex = await Assert.ThrowsAsync<BookingTransactionException>(
+            () => bookingService.ConfirmBookingHold(newUser.Id, CancellationToken.None));
+        
+        Assert.Equal(BookingTransactionStatus.CommitOutcomeUnknown, ex.TransactionStatus);
+    }
     private string GetHoldDataKey(Guid holdId)
     {
         return $"hold:{holdId}";
+    }
+    public string GetFinalizingKey(Guid holdId)
+    {
+        return $"hold:finalizing:{holdId}";
     }
 
 }

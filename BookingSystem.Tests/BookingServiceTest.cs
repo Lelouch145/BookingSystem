@@ -10,6 +10,7 @@ using BookingSystem.Api.Services.interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -40,7 +41,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CreateBookingTest()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -55,7 +56,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
 
         var newUser = helper.CreateNewUser();
         dbContext.Users.Add(newUser);
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
         var result = await bookingService.CreateBooking(newCourt.Id, startTime, 60, newUser.Id, CancellationToken.None, null);
@@ -70,7 +71,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBookingTest()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -98,7 +99,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Bookings.Add(booking);
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.CancelBooking(newUser.Id, booking.Id, CancellationToken.None, false);
         var bookingStatus = await dbContext.Bookings.FirstAsync(x => x.Id == booking.Id);
@@ -111,7 +112,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
 
     public async Task RescheduleBooking()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -131,7 +132,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
 
         var newStartTime = DateTime.Now.Date.AddDays(3).AddHours(15).AddMinutes(30);
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.RescheduleBooking(user.Id, booking.Id, 60, newStartTime, false, CancellationToken.None);
         var changedBooking = await dbContext.Bookings.FirstAsync(x => x.Id == booking.Id);
@@ -150,7 +151,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CreateBooking_CouldNotFindTheCourtInDatabase()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -163,7 +164,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var user = helper.CreateNewUser();
         dbContext.Users.Add(user);
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var startTime = DateTime.Now.Date.AddDays(1).AddHours(18).AddMinutes(30);
         var result = await service.CreateBooking(newCourt.Id, startTime, 60, user.Id, CancellationToken.None, null);
@@ -173,7 +174,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_BookingNotFound()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -200,7 +201,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         };
         dbContext.Bookings.Add(booking);
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.CancelBooking(newUser.Id, booking.Id, CancellationToken.None, false);
         Assert.False(result.Success);
@@ -209,7 +210,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_BookingIsAlreadyCancelled()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -237,7 +238,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Bookings.Add(booking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.CancelBooking(newUser.Id, booking.Id, CancellationToken.None, false);
         Assert.False(result.Success);
@@ -247,7 +248,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_CannotCancelBooking24HoursBeforeTheBooking()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -275,7 +276,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Bookings.Add(booking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.CancelBooking(newUser.Id, booking.Id, CancellationToken.None, false);
         Assert.False(result.Success);
@@ -285,7 +286,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_AdminCancel24HoursBeforeTheBooking()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -313,7 +314,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Bookings.Add(booking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.CancelBooking(newUser.Id, booking.Id, CancellationToken.None, true);
         var bookingStatus = await dbContext.Bookings.FirstAsync(x => x.Id == booking.Id);
@@ -323,7 +324,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task RescheduleBooking_BookingNotFound()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -342,7 +343,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
 
         var newStartTime = DateTime.Now.Date.AddDays(3).AddHours(15).AddMinutes(30);
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.RescheduleBooking(user.Id, booking.Id, 60, newStartTime, false, CancellationToken.None);
 
@@ -354,7 +355,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CreateBooking_CacheDeleteConfirm()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
         
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -368,7 +369,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Users.Add(newUser);
         await dbContext.SaveChangesAsync();
 
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         await cache.SetStringAsync(BookingsAll, "Test-cache");
         await cache.SetStringAsync($"{BookingsUser}{newUser.Id}", "Test-userCache");
@@ -391,7 +392,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetUserBooking_CacheHit()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -425,7 +426,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var json = JsonSerializer.Serialize<List<BookingDto>>(cacheBookingList);
         await cache.SetStringAsync($"{BookingsUser}{newUser.Id}", json);
         
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.GetUserBookings(newUser.Id, CancellationToken.None);
         var resultResponse = result.First(x => x.Id == newBooking.Id);
@@ -441,7 +442,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetUserBooking_CacheMiss()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -458,7 +459,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
         
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.GetUserBookings(newUser.Id, CancellationToken.None);
         var resultResponse = result.First(x => x.CourtId == newCourt.Id);
@@ -475,7 +476,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetAllBookings_CacheHit()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -509,7 +510,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var json = JsonSerializer.Serialize<List<BookingDto>>(cacheBookingList);
         await cache.SetStringAsync(BookingsAll, json);
         
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.GetAllBookings(CancellationToken.None);
         var resultResponse = result.First(x => x.Id == newBooking.Id);
@@ -525,7 +526,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetAllBookings_CacheMiss()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -542,7 +543,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
         
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.GetAllBookings(CancellationToken.None);
         var resultResponse = result.First(x => x.CourtId == newCourt.Id);
@@ -558,7 +559,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CancelBooking_CacheUserDelte_AdminIsDeleting()
     {
-        var (helper, dbContext, cache, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, cache, logger, bookingTimeService, dbContextFactory) = CreateSetup();
         var loggerHold = NullLogger<BookingHoldService>.Instance;
         var date = DateOnly.FromDateTime(DateTime.Today).AddDays(2);
         var newUser = helper.CreateNewUser();
@@ -582,7 +583,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
         var holdService = new BookingHoldService(bookingTimeService, connection, dbContext, loggerHold);
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
         var result = await service.CancelBooking(newUser.Id, newBooking.Id, CancellationToken.None, true);
 
         var cacheDeleteConfirmAll = await cache.GetStringAsync(BookingsAll);
@@ -596,7 +597,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task GetUserBookings_RedisDown()
     {
-        var (helper, dbContext, _, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, _, logger, bookingTimeService, dbContextFactory) = CreateSetup();
         var cache = new FakeDistributedCache();
         var redisIntegrationHelper = new RedisIntegrationHelper();
         var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
@@ -613,7 +614,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         dbContext.Bookings.Add(newBooking);
         await dbContext.SaveChangesAsync();
 
-        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var service = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var result = await service.GetUserBookings(newUser.Id, CancellationToken.None);
         var findBooking = result.First(x => x.UserId == newUser.Id);
@@ -626,7 +627,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
     [Fact]
     public async Task CreateBooking_RedisDown()
     {
-        var (helper, dbContext, _, logger, bookingTimeService) = CreateSetup();
+        var (helper, dbContext, _, logger, bookingTimeService, dbContextFactory) = CreateSetup();
         var cache = new FakeDistributedCache();
 
         var redisIntegrationHelper = new RedisIntegrationHelper();
@@ -642,7 +643,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         await dbContext.SaveChangesAsync();
 
 
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService);
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
 
         var startTime = DateTime.UtcNow.Date.AddDays(2).AddHours(18);
 
@@ -653,7 +654,7 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         Assert.Equal(newUser.Id, databaseSave.UserId);
     }
 
-    private (HelperUnit helper, AppDbContext dbContext, IDistributedCache cache, ILogger<BookingService> logger, BookingTimeService bookingTimeService) CreateSetup()
+    private (HelperUnit helper, AppDbContext dbContext, IDistributedCache cache, ILogger<BookingService> logger, BookingTimeService bookingTimeService, IDbContextFactory<AppDbContext> dbContextFactory) CreateSetup()
     {  
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
@@ -661,6 +662,14 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         var logger = NullLogger<BookingService>.Instance;
         var bookingTimeService = new BookingTimeService(dbContext);
 
-        return(helper, dbContext, cache, logger, bookingTimeService);
+        var services = new ServiceCollection();
+        services.AddDbContextFactory<AppDbContext>(options => 
+            options.UseSqlServer(dbContext.Database.GetConnectionString()));
+        
+        using var provider = services.BuildServiceProvider();
+
+        var dbContextFactory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+
+        return(helper, dbContext, cache, logger, bookingTimeService, dbContextFactory);
     }
 }

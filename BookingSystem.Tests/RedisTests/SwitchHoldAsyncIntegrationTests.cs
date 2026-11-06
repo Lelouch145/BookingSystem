@@ -33,7 +33,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     public async Task SwitchHold_Success()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime, _) = await helperClass.CreateSetup();
         var newDate = DateOnly.FromDateTime(DateTime.Today).AddMonths(2).AddDays(14);
 
         await dbContext.SaveChangesAsync();
@@ -49,7 +49,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     public async Task SwitchHold_OverlappingSlots()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
         var oldDuration = 90;
         var newBookingTime = new TimeOnly(16, 00);
@@ -66,7 +66,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     public async Task SwitchHold_NewSlotOccupied()
     {
         var helperClass = new RedisHelper();
-        var (helper , dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (helper , dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
         var anotherUser = helper.CreateNewUser();
         dbContext.Users.Add(anotherUser);
@@ -100,7 +100,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     public async Task SwitchHold_PreserveExpiration()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
         var oldDuration = 90;
         var newBookingTime = new TimeOnly(16, 00);
@@ -118,7 +118,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     public async Task SwitchHold_UserWithoutHold()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
 
 
@@ -132,7 +132,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     public async Task SwitchHold_ChangeCourt()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (helper, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
         var differentCourtName = $"Court-{Guid.NewGuid()}";
         var differentCourt = helper.CreateNewCourt(differentCourtName);
         dbContext.Courts.Add(differentCourt);
@@ -150,7 +150,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     public async Task SwitchHold_ConcurrentRequests()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (helper, dbContext, bookingTimeService, logger, connection, _, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
         var secondDbContext = helper.DbContextHellper();
         var secondBookingTimeService = new BookingTimeService(secondDbContext);
         
@@ -170,7 +170,7 @@ public class SwitchHoldAsyncIntegrationgTests : IClassFixture<DatabaseFixture>, 
     public async Task SwitchHold_HoldDataChanged()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (helper, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 

@@ -14,6 +14,7 @@ using System.Text.Json;
 using StackExchange.Redis;
 using BookingSystem.Api.Services.interfaces;
 using System.Net.Http.Headers;
+using BookingSystem.Api.Services.CustomExceptions;
 
 namespace BookingSystem.Api.Services;
 
@@ -34,14 +35,16 @@ public class BookingService
     private readonly IDistributedCache _cache;
     private readonly ILogger<BookingService> _logger;
     private readonly IBookingHoldService _bookingHoldService;
+    private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
 
-    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService, IDistributedCache cache, ILogger<BookingService> logger, IBookingHoldService bookingHoldService)
+    public BookingService(AppDbContext dbContext, BookingTimeService bookingTimeService, IDistributedCache cache, ILogger<BookingService> logger, IBookingHoldService bookingHoldService, IDbContextFactory<AppDbContext> dbContextFactory)
     {
         _dbContext = dbContext;
         _bookingTimeService = bookingTimeService;
         _cache = cache;
         _logger = logger;
         _bookingHoldService = bookingHoldService;
+        _dbContextFactory = dbContextFactory;
 
     }
 
@@ -86,15 +89,37 @@ public class BookingService
         }
         catch(OperationCanceledException ex)
         {
+            var checkForBooking = await CheckDatabaseForHoldId(hold.HoldId);
+            if (checkForBooking != null)
+            {
+                await _bookingHoldService.CompleteFinalizationAsync(userId, finalizing.LockToken);
+            }
             _logger.LogInformation(ex, "Booking creation was cancelled");
             throw;
         }
+        catch(BookingTransactionException ex)
+        {
+            var handleBooking = await HandleBookingExceptionAsync(userId, finalizing.LockToken, hold.HoldId, ex.TransactionStatus);
+
+            if(handleBooking != null)
+            {
+                return handleBooking;
+            }
+            throw;
+            
+        }
         catch(Exception ex)
         {
+            var checkForBooking = await CheckDatabaseForHoldId(hold.HoldId);
+            if (checkForBooking != null)
+            {
+                await _bookingHoldService.CompleteFinalizationAsync(userId, finalizing.LockToken);
+            }
             _logger.LogError(ex, "Unexpected error during booking creation");
             throw;
         }
 
+        var compareHoldId = await _dbContext.Bookings.FirstOrDefaultAsync(x => x.HoldId == hold.HoldId);
         if(createBooking.ErrorMessage != Error.none || !createBooking.Success)
         {
             var abort = await _bookingHoldService.AbortFinalizationAsync(userId, finalizing.LockToken);
@@ -204,7 +229,6 @@ public class BookingService
         try
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
 
         }
         catch(DbUpdateException ex)
@@ -229,7 +253,22 @@ public class BookingService
 
             }
 
-            throw;
+            throw new BookingTransactionException(BookingTransactionStatus.RolledBack, ex);
+        }
+        catch(Exception ex)
+        {
+            await transaction.RollbackAsync();
+
+            _logger.LogError(ex, "SaveChangesAsync failed");
+            throw new BookingTransactionException(BookingTransactionStatus.RolledBack, ex);
+        }
+        try
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch(Exception ex)
+        {
+            throw new BookingTransactionException(BookingTransactionStatus.CommitOutcomeUnknown, ex);
         }
 
         BookingClient bookingClient = new BookingClient
@@ -735,6 +774,65 @@ public class BookingService
         {
             _logger.LogWarning(ex, "Redis timedout operation taking to long");
         }
+    }
+
+    private async Task<Booking?> CheckDatabaseForHoldId(Guid holdId)
+    {
+        await using var context = await _dbContextFactory.CreateDbContextAsync();
+
+        return await context.Bookings.FirstOrDefaultAsync(x => x.HoldId == holdId);
+
+    }
+
+    internal async Task<BookingResult?> HandleBookingExceptionAsync(string userId, Guid? lockToken, Guid holdId, BookingTransactionStatus status )
+    {
+        if (status == BookingTransactionStatus.RolledBack)
+        {
+            var abort = await _bookingHoldService.AbortFinalizationAsync(userId, lockToken);
+
+            if(!abort.Success || abort.ErrorMessage != Error.none)
+            {
+                _logger.LogError("AbortFinalization failed {Error}", abort.ErrorMessage);
+            }
+            return null;
+        }
+        else if(status == BookingTransactionStatus.CommitOutcomeUnknown)
+        {
+            var bookingExists = await CheckDatabaseForHoldId(holdId);
+            if (bookingExists != null)
+            {
+                var complete = await _bookingHoldService.CompleteFinalizationAsync(userId, lockToken);
+
+                if(!complete.Success || complete.ErrorMessage != Error.none)
+                {
+                    _logger.LogError("CompleteFinalization failed: {Error}", complete.ErrorMessage);
+                }
+
+                var duration = (int)(bookingExists.EndTime - bookingExists.StartTime).TotalMinutes;
+                
+                var bookingClient = new BookingClient
+                {
+                    Id = bookingExists.Id,
+                    CourtId = bookingExists.CourtId,
+                    StartTime = bookingExists.StartTime,
+                    EndTime = bookingExists.EndTime,
+                    Duration = duration,
+                    Status = bookingExists.Status,
+                    CreatedAt = bookingExists.CreatedAt
+                };
+                return new BookingResult
+                {
+                    Success = true,
+                    ClientBooking = bookingClient
+                };
+            }
+            else
+            {
+                _logger.LogWarning("Booking not found after uncertain SQL commit. HoldId {HoldId}. Redis hold remains locked until expiration", holdId);
+                return null;
+            }
+        }
+        return null;
     }
     
 

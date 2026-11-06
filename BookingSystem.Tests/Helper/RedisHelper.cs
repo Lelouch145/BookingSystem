@@ -3,6 +3,9 @@ using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services;
 using BookingSystem.Api.Services.Caching;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
@@ -11,7 +14,7 @@ namespace BookingSystem.Tests;
 
 public class RedisHelper
 {
-    public async Task<(HelperUnit helper, AppDbContext dbContext, BookingTimeService bookingTimeService, ILogger<BookingHoldService> logger, IConnectionMultiplexer connection, IDatabase database, string courtName, Court newCourt, ApplicationUser newUser, int duration, DateOnly date, TimeOnly bookingTime)> CreateSetup()
+    public async Task<(HelperUnit helper, AppDbContext dbContext, BookingTimeService bookingTimeService, ILogger<BookingHoldService> logger, IConnectionMultiplexer connection, IDatabase database, string courtName, Court newCourt, ApplicationUser newUser, int duration, DateOnly date, TimeOnly bookingTime, IDbContextFactory<AppDbContext> dbContextFactory)> CreateSetup()
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
@@ -28,9 +31,16 @@ public class RedisHelper
         var date = DateOnly.FromDateTime(DateTime.Today).AddMonths(2).AddDays(14);
         var bookingTime = new TimeOnly(15, 30);
         var (connection, database, _) = redisIntegrationHelper.CreateRedisSetup();
-        return (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime);
+
+        var services = new ServiceCollection();
+        services.AddDbContextFactory<AppDbContext>(options => 
+            options.UseSqlServer(dbContext.Database.GetConnectionString()));
+        
+        using var provider = services.BuildServiceProvider();
+        var dbContextFactory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        return (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, dbContextFactory);
     }
-    public async Task<(HelperUnit helper, AppDbContext dbContext, BookingTimeService bookingTimeService, ILogger<BookingHoldService> logger, IConnectionMultiplexer connection, IDatabase database, string courtName, Court newCourt, ApplicationUser newUser, int duration, DateOnly date, TimeOnly bookingTime,BookingHoldService service, CreateHoldResponse createHold)> CreateSetupValidate()
+    public async Task<(HelperUnit helper, AppDbContext dbContext, BookingTimeService bookingTimeService, ILogger<BookingHoldService> logger, IConnectionMultiplexer connection, IDatabase database, string courtName, Court newCourt, ApplicationUser newUser, int duration, DateOnly date, TimeOnly bookingTime,BookingHoldService service, CreateHoldResponse createHold, IDbContextFactory<AppDbContext> dbContextFactory)> CreateSetupValidate()
     {
         var helper = new HelperUnit();
         var dbContext = helper.DbContextHellper();
@@ -49,17 +59,34 @@ public class RedisHelper
         var (connection, database, _) = redisIntegrationHelper.CreateRedisSetup();
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
         var createHold = await service.CreateHoldAsync(date, bookingTime, duration, newCourt.Id, newUser.Id, CancellationToken.None);
-        return (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold);
+
+        var services = new ServiceCollection();
+        services.AddDbContextFactory<AppDbContext>(options => 
+            options.UseSqlServer(dbContext.Database.GetConnectionString()));
+        
+        using var provider = services.BuildServiceProvider();
+
+        var dbContextFactory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+
+        return (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, dbContextFactory);
     }
     public async Task<(HelperUnit helper, AppDbContext dbContext, BookingService bookingService, ApplicationUser newUser)> SetupForConfirmBooking()
     {
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await CreateSetupValidate();
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, _ ) = await CreateSetupValidate();
         var bookingLogger = NullLogger<BookingService>.Instance;
         var cache = helper.DistributedCache();
 
-        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, service);
+        var services = new ServiceCollection();
+        services.AddDbContextFactory<AppDbContext>(options => 
+            options.UseSqlServer(dbContext.Database.GetConnectionString()));
+        
+        using var provider = services.BuildServiceProvider();
+
+        var dbContextFactory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, bookingLogger, service, dbContextFactory);
         return(helper, dbContext, bookingService, newUser);
     }
+
     public string GetSlotHoldIdKey(int courtId, DateOnly date, TimeOnly slotStart)
     {
         return $"hold:slot:{courtId}:{date:yyyy-MM-dd}:{slotStart:HH:mm}";

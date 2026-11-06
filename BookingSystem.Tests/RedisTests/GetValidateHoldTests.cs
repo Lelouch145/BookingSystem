@@ -27,7 +27,7 @@ public class GetValidateTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     public async Task GetValidateHold_Success()
     {
         var helperClass = new RedisHelper();
-        var (_, _, _, _, _, _, _, newCourt, newUser, _, _, _, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, _, _, _, newCourt, newUser, _, _, _, service, createHold, _ ) = await helperClass.CreateSetupValidate();
 
         Assert.Equal(Error.none, createHold.ErrorMessage);
         var validate = await service.GetValidateHoldAsync(newUser.Id);
@@ -40,7 +40,7 @@ public class GetValidateTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     public async Task GetValidateHold_UserWithoutHold()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, _, _, _, newUser, _, _, _) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, _, _, _, newUser, _, _, _, _) = await helperClass.CreateSetup();
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
         var validate = await service.GetValidateHoldAsync(newUser.Id);
@@ -51,7 +51,7 @@ public class GetValidateTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     {
                          
         var helperClass = new RedisHelper();
-        var (_, _, _, _, connection , database, _, newCourt, newUser, _, _, _, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, connection , database, _, newCourt, newUser, _, _, _, service, createHold, _ ) = await helperClass.CreateSetupValidate();
 
         await database.KeyDeleteAsync(GetHoldDataKey(createHold.HoldId));
         var validate = await service.GetValidateHoldAsync(newUser.Id);
@@ -61,7 +61,7 @@ public class GetValidateTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     public async Task GetValidateHold_InvalidJson()
     {
         var helperClass = new RedisHelper();
-        var (_, _, _, _, connection , database, _, newCourt, newUser, _, _, _, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, connection , database, _, newCourt, newUser, _, _, _, service, createHold, _ ) = await helperClass.CreateSetupValidate();
 
         await database.StringSetAsync(GetHoldDataKey(createHold.HoldId), "Invalid", TimeSpan.FromMinutes(5));
 
@@ -73,7 +73,7 @@ public class GetValidateTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     public async Task GetValidateHold_SlotMissing()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, _, _, connection , database, _, newCourt, newUser, _, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (helper, dbContext, _, _, connection , database, _, newCourt, newUser, _, date, bookingTime, service, _, _ ) = await helperClass.CreateSetupValidate();
  
         await database.KeyDeleteAsync(GetSlotHoldIdKey(newCourt.Id, date, bookingTime));
 
@@ -85,7 +85,7 @@ public class GetValidateTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
     public async Task GetValidateHold_SlotBelongsToAnotherHold()
     {
          var helperClass = new RedisHelper();
-        var (helper, dbContext, _, _, connection , database, _, newCourt, newUser, _, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (helper, dbContext, _, _, _ , _, _, _, _, _, _, _, service, _, _ ) = await helperClass.CreateSetupValidate();
 
         var newUserName = $"newUser-{Guid.NewGuid()}";
         var newUser2 = helper.CreateNewUser();

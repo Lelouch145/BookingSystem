@@ -26,7 +26,7 @@ public class ReleaseHoldIntegrationTests : IClassFixture<DatabaseFixture>, IAsyn
     public async Task ReleaseHold_Success()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
@@ -62,7 +62,7 @@ public class ReleaseHoldIntegrationTests : IClassFixture<DatabaseFixture>, IAsyn
     public async Task ReleaseHold_UserWithoutHold()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, _, _, _, newUser, _, _, _ ) = await helperClass.CreateSetup(); 
+        var (_, dbContext, bookingTimeService, logger, connection, _, _, _, newUser, _, _, _, _ ) = await helperClass.CreateSetup(); 
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
@@ -74,7 +74,7 @@ public class ReleaseHoldIntegrationTests : IClassFixture<DatabaseFixture>, IAsyn
     public async Task ReleaseHold_OtherUserUnaffected()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (helper, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
         var anotherUser = helper.CreateNewUser();
         dbContext.Users.Add(anotherUser);
@@ -98,7 +98,7 @@ public class ReleaseHoldIntegrationTests : IClassFixture<DatabaseFixture>, IAsyn
     public async Task ReleaseHold_AlreadyReleased()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
@@ -113,7 +113,7 @@ public class ReleaseHoldIntegrationTests : IClassFixture<DatabaseFixture>, IAsyn
     public async Task ReleaseHold_ConcurrentRequests()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime ) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, database, _, newCourt, newUser, duration, date, bookingTime, _ ) = await helperClass.CreateSetup();
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 

@@ -24,7 +24,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_Success()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, _ , _, _, _, newUser, _, _, _, service, _, _ ) = await helperClass.CreateSetupValidate();
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         Assert.True(finalizing.Success);
         Assert.Equal(Error.none, finalizing.ErrorMessage);
@@ -34,7 +34,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_UserWithoutHold()
     {
         var helperClass = new RedisHelper();
-        var (_, dbContext, bookingTimeService, logger, connection, _, _, _, newUser, _, _, _) = await helperClass.CreateSetup();
+        var (_, dbContext, bookingTimeService, logger, connection, _, _, _, newUser, _, _, _, _) = await helperClass.CreateSetup();
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
@@ -46,7 +46,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_AlreadyFinalizing()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate(); 
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, _ ) = await helperClass.CreateSetupValidate(); 
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         Assert.True(finalizing.Success);
@@ -58,7 +58,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_ConcurrentRequests()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate(); 
+        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold, _ ) = await helperClass.CreateSetupValidate(); 
 
         var finalizing = service.BeginFinalizationAsync(newUser.Id);
         var secondFinalizing = service.BeginFinalizationAsync(newUser.Id);
@@ -71,7 +71,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_SlotMissing()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();  
+        var (_, _, _, _, _ , database, _, newCourt, newUser, _, date, bookingTime, service, _, _ ) = await helperClass.CreateSetupValidate();  
 
         await database.KeyDeleteAsync(GetSlotHoldIdKey(newCourt.Id, date, bookingTime));
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
@@ -81,7 +81,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_SwitchBlocked()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate(); 
+        var (_, _, _, _, _ , _, _, newCourt, newUser, _, date, bookingTime, service, _, _ ) = await helperClass.CreateSetupValidate(); 
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         Assert.Equal(Error.none, finalizing.ErrorMessage);
@@ -94,7 +94,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_ReleaseBlocked()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate(); 
+        var (_, _, _, _, _ , _, _, _, newUser, _, _, _, service, _, _ ) = await helperClass.CreateSetupValidate(); 
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         Assert.Equal(Error.none, finalizing.ErrorMessage);
@@ -106,7 +106,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_MinimumTTl()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, _ , database, _, _, newUser, _, _, _, service, createHold, _ ) = await helperClass.CreateSetupValidate();
 
         await database.KeyExpireAsync(GetHoldDataKey(createHold.HoldId), TimeSpan.FromSeconds(30));
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
@@ -119,7 +119,7 @@ public class BookingFinalizationTests : IClassFixture<DatabaseFixture>, IAsyncLi
     public async Task BeginFinalization_PreserveLongerTTL()
     {
         var helperClass = new RedisHelper();
-        var (helper, dbContext, bookingTimeService, logger, connection , database, courtName, newCourt, newUser, duration, date, bookingTime, service, createHold ) = await helperClass.CreateSetupValidate();
+        var (_, _, _, _, _ , database, _, _, newUser, _, _, _, service, createHold, _ ) = await helperClass.CreateSetupValidate();
 
         var finalizing = await service.BeginFinalizationAsync(newUser.Id);
         var ttl = await database.KeyTimeToLiveAsync(GetFinalizingKey(createHold.HoldId));
