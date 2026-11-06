@@ -66,7 +66,7 @@ public class GetValidateTests : IClassFixture<DatabaseFixture>, IAsyncLifetime
         await database.StringSetAsync(GetHoldDataKey(createHold.HoldId), "Invalid", TimeSpan.FromMinutes(5));
 
         var validate = await service.GetValidateHoldAsync(newUser.Id);
-        Assert.Equal(Error.DontHaveAHold, validate.ErrorMessage);
+        Assert.Equal(Error.CouldNotDeserializeJson, validate.ErrorMessage);
         Assert.Null(validate.CacheHold);
     }
     [Fact]
