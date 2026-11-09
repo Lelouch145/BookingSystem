@@ -104,6 +104,9 @@ namespace BookingSystem.Api.Migrations
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid?>("HoldId")
                         .HasColumnType("uniqueidentifier");
 
@@ -194,6 +197,42 @@ namespace BookingSystem.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Courts");
+                });
+
+            modelBuilder.Entity("BookingSystem.Api.Models.SystemModels.PaymentModell", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BookingId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StripePaymentIntentId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.ToTable("PaymentModell");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -367,6 +406,17 @@ namespace BookingSystem.Api.Migrations
                     b.Navigation("Court");
                 });
 
+            modelBuilder.Entity("BookingSystem.Api.Models.SystemModels.PaymentModell", b =>
+                {
+                    b.HasOne("BookingSystem.Api.Models.SystemModels.Booking", "Booking")
+                        .WithMany("Payments")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -426,6 +476,8 @@ namespace BookingSystem.Api.Migrations
             modelBuilder.Entity("BookingSystem.Api.Models.SystemModels.Booking", b =>
                 {
                     b.Navigation("BookingSlots");
+
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("BookingSystem.Api.Models.SystemModels.Court", b =>

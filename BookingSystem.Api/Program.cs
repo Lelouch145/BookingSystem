@@ -65,7 +65,7 @@ builder.Services.AddSwaggerGen(options =>
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string"
     + "'DefaultConnection' not found.");
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
 .AddEntityFrameworkStores<AppDbContext>();
@@ -257,7 +257,7 @@ app.MapPost("Login", async (LoginService services, LoginRequest request) =>
     }
 });
 
-app.MapPost("/CreateHolds", async (IBookingHoldService holdService, DateOnly date, TimeOnly bookingTIme, int duration, int courtId, ClaimsPrincipal user, CancellationToken cancellationToken) =>
+app.MapPost("/CreateHold", async (IBookingHoldService holdService, DateOnly date, TimeOnly bookingTIme, int duration, int courtId, ClaimsPrincipal user, CancellationToken cancellationToken) =>
 {
     var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
 

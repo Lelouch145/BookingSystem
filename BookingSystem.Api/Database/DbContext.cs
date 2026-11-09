@@ -44,9 +44,14 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Booking>()
         .HasIndex(x => x.HoldId)
         .IsUnique();
+
+        builder.Entity<PaymentModell>()
+            .Property(p => p.Amount)
+            .HasPrecision(18, 2);
     }
     public DbSet<Court> Courts { get; set; }
     public DbSet<Booking> Bookings { get; set; }
     public DbSet<BookingSlot> BookingSlots { get; set; }
+    public DbSet<PaymentModell> PaymentModell {get;set;}
 
 }

@@ -520,9 +520,6 @@ public class BookingService
 
         }
 
-
-
-
         findBooking.Status = BookingStatus.Cancelled;
         try
         {

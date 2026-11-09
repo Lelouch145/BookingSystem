@@ -20,4 +20,6 @@ public class Booking
     public ICollection<BookingSlot> BookingSlots { get; set; } = new List<BookingSlot>();
     public byte[] RowVersion { get; set; } = null!;
     public Guid? HoldId {get;set;}
+    public ICollection<PaymentModell> Payments {get;set;} = [];
+    public DateTime? ExpiresAtUtc {get;set;}
 }
