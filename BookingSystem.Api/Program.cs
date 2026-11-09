@@ -21,6 +21,7 @@ using BookingSystem.Api.Services.Caching;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using BookingSystem.Api.Services.interfaces;
 using BookingSystem.Api.Helper;
+using Stripe;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -138,6 +139,12 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+
+var stripeSecretKey = builder.Configuration["Stripe:SecretKey"]
+    ?? throw new InvalidOperationException("Stripe API key is missing.");
+
+builder.Services.AddSingleton(new StripeClient(stripeSecretKey));
+
 var app = builder.Build();
 
 await using var scope = app.Services.CreateAsyncScope();
@@ -165,6 +172,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapPost("/api/payments/webhook", (ILogger<Program> logger) =>
+{
+    logger.LogInformation("Webhook received from Stripe");
+    return Results.Ok();
+});
 
 app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string courtName, string description, CancellationToken cancellationToken) =>
 {
