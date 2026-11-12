@@ -224,13 +224,17 @@ namespace BookingSystem.Api.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
+                    b.Property<string>("StripeCheckOutSessionId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("StripePaymentIntentId")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BookingId");
+                    b.HasIndex("BookingId")
+                        .IsUnique()
+                        .HasFilter("[Status] = 0");
 
                     b.ToTable("PaymentModell");
                 });

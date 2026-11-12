@@ -48,6 +48,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<PaymentModell>()
             .Property(p => p.Amount)
             .HasPrecision(18, 2);
+        
+        builder.Entity<PaymentModell>()
+            .HasIndex(x => x.BookingId)
+            .IsUnique()
+            .HasFilter("[Status] = 0");
+            
     }
     public DbSet<Court> Courts { get; set; }
     public DbSet<Booking> Bookings { get; set; }

@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using BookingSystem.Api.Database;
 using BookingSystem.Api.Models.ResponseModel;
 using BookingSystem.Api.Models.SystemModels;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using StackExchange.Redis;
 
 namespace BookingSystem.Tests;
@@ -32,12 +34,22 @@ public class RedisHelper
         var bookingTime = new TimeOnly(15, 30);
         var (connection, database, _) = redisIntegrationHelper.CreateRedisSetup();
 
-        var services = new ServiceCollection();
-        services.AddDbContextFactory<AppDbContext>(options => 
-            options.UseSqlServer(dbContext.Database.GetConnectionString()));
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(dbContext.Database.GetConnectionString())
+            .Options;
         
-        using var provider = services.BuildServiceProvider();
-        var dbContextFactory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        var factoryMock = new Mock<IDbContextFactory<AppDbContext>>();
+        
+        factoryMock.Setup(x => x.CreateDbContext())
+        .Returns(() => new AppDbContext(options));
+
+        factoryMock.Setup(x => x.CreateDbContextAsync(
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new AppDbContext(options));
+        
+        var dbContextFactory = factoryMock.Object;
+
+
         return (helper, dbContext, bookingTimeService, logger, connection, database, courtName, newCourt, newUser, duration, date, bookingTime, dbContextFactory);
     }
     public async Task<(HelperUnit helper, AppDbContext dbContext, BookingTimeService bookingTimeService, ILogger<BookingHoldService> logger, IConnectionMultiplexer connection, IDatabase database, string courtName, Court newCourt, ApplicationUser newUser, int duration, DateOnly date, TimeOnly bookingTime,BookingHoldService service, CreateHoldResponse createHold, IDbContextFactory<AppDbContext> dbContextFactory)> CreateSetupValidate()

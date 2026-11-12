@@ -8,7 +8,8 @@ public class PaymentModell
     public PaymentStatus Status {get;set;}
     public decimal Amount {get;set;}
     public string Currency {get;set;} = "";
-    public string StripePaymentIntentId {get;set;} = "";
+    public string? StripePaymentIntentId {get;set;}
+    public string? StripeCheckOutSessionId {get;set;}
     public DateTime CreatedAtUtc {get;set;} = DateTime.UtcNow;
 
 }

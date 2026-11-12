@@ -43,5 +43,15 @@ public enum Error
     HoldFinalizationInProgress,
     FinalizationLockMismatch,
     FinalizationLockTokenMissing,
-    DuplicateHoldId
+    DuplicateHoldId,
+    BookingStatusIsNotPendingPayment,
+    TimeExpiredForPendingPayment,
+    AnotherPaymentIsAlreadyProccessing,
+    StripeServiceUnavailable,
+    StripeSessionUrlIsNull,
+    CouldNotSavePayment,
+    StripeSessionStateUnknown,
+    CouldNotsaveCheckoutSessionId,
+    CouldNotUpdatepaymentStatus,
+    CouldNotRetrievePayment
 }

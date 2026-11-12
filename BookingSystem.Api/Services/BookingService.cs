@@ -219,10 +219,11 @@ public class BookingService
             StartTime = startTime,
             UserId = userId,
             EndTime = endTime,
-            Status = BookingStatus.Confirmed,
+            Status = BookingStatus.PendingPayment,
             CreatedAt = DateTime.UtcNow,
             BookingSlots = bookingSlots,
-            HoldId = holdId
+            HoldId = holdId,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(10)
 
         };
         _dbContext.Bookings.Add(booking);

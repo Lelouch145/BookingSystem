@@ -653,6 +653,36 @@ public class BookingServiceTests : IClassFixture<DatabaseFixture>, IAsyncLifetim
         Assert.Equal(Error.none, result.ErrorMessage);
         Assert.Equal(newUser.Id, databaseSave.UserId);
     }
+    [Fact]
+    public async Task CreateBooking_TestingPExpiresAtUtcExist()
+    {
+        var (helper, dbContext, _, logger, bookingTimeService, dbContextFactory) = CreateSetup();
+        var cache = new FakeDistributedCache();
+
+        var redisIntegrationHelper = new RedisIntegrationHelper();
+        var (connection, _, _) = redisIntegrationHelper.CreateRedisSetup();
+        var loggerHold = NullLogger<BookingHoldService>.Instance;
+        var holdService = new BookingHoldService(bookingTimeService, connection, dbContext, loggerHold);
+
+        var courtName = $"Court-{Guid.NewGuid()}";
+        var newCourt = helper.CreateNewCourt(courtName);
+        dbContext.Courts.Add(newCourt);
+        var newUser = helper.CreateNewUser();
+        dbContext.Users.Add(newUser);
+        await dbContext.SaveChangesAsync();
+
+
+        var bookingService = new BookingService(dbContext, bookingTimeService, cache, logger, holdService, dbContextFactory);
+
+        var startTime = DateTime.UtcNow.Date.AddDays(2).AddHours(18);
+
+        var result = await bookingService.CreateBooking(newCourt.Id, startTime, 60, newUser.Id, CancellationToken.None, null);
+        var databaseSave = dbContext.Bookings.First(x => x.CourtId == newCourt.Id);
+
+        Assert.NotNull(databaseSave.ExpiresAtUtc);
+        Assert.Equal(BookingStatus.PendingPayment, databaseSave.Status);
+        Assert.InRange(databaseSave.ExpiresAtUtc.Value, DateTime.UtcNow.AddMinutes(9), DateTime.UtcNow.AddMinutes(10));
+    }
 
     private (HelperUnit helper, AppDbContext dbContext, IDistributedCache cache, ILogger<BookingService> logger, BookingTimeService bookingTimeService, IDbContextFactory<AppDbContext> dbContextFactory) CreateSetup()
     {  
