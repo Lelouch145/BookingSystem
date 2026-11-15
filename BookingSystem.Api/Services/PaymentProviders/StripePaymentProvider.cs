@@ -82,4 +82,51 @@ public class StripePaymentProvider : IPaymentProvider
         var service = new SessionService(_stripeClient);
         await service.ExpireAsync(sessionId);
     }
+
+    public async Task<PaymentStatusResponse> GetPaymentStatusAsync(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return new PaymentStatusResponse
+            {
+                ErrorMessage = Error.SessionIdIsEmpty
+            };
+        }
+
+        var service = new SessionService(_stripeClient);
+
+        Session session;
+        try
+        {
+            session = await service.GetAsync(sessionId);
+        }
+        catch(StripeException ex)
+        {
+            _logger.LogError(ex, "Stripe get status failed");
+
+            return new PaymentStatusResponse
+            {
+                ErrorMessage = Error.StripeServiceUnavailable
+            };
+        }
+
+        if(session == null || 
+            string.IsNullOrWhiteSpace(session.Status) ||
+            string.IsNullOrWhiteSpace(session.PaymentStatus))
+        {
+            return new PaymentStatusResponse
+            {
+                ErrorMessage = Error.StripeStatusIsNull
+            };
+        }
+
+        return new PaymentStatusResponse
+        {
+            SessionId = session.Id,
+            SessionStatus = session.Status,
+            PaymentStatus = session.PaymentStatus,
+            PaymentIntentId = session.PaymentIntentId,
+            ClientReferenceId = session.ClientReferenceId
+        };
+    }
 }

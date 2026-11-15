@@ -1,5 +1,6 @@
 using System.Data.Common;
 using BookingSystem.Api.Database;
+using BookingSystem.Api.Models.StripeModels;
 using BookingSystem.Api.Models.SystemModels;
 using BookingSystem.Api.Services.interfaces;
 using BookingSystem.Api.Services.PaymentProviders;
@@ -30,27 +31,13 @@ public class PaymentService : IPaymentService
     {
         var getBooking = await _dbContext.Bookings.FirstOrDefaultAsync(x => x.UserId == userId  && x.Id == bookingId);
 
-        if(getBooking == null)
-        {
-            return new StartPaymentModell
-            {
-                ErrorMessage = Error.BookingNotFound
-            };
-        }
+        var validate = ValidateBooking(getBooking);
 
-        if(getBooking.Status != BookingStatus.PendingPayment)
+        if(validate != Error.none)
         {
             return new StartPaymentModell
             {
-                ErrorMessage = Error.BookingStatusIsNotPendingPayment
-            };
-        }
-
-        if(getBooking.ExpiresAtUtc <= DateTime.UtcNow || getBooking.ExpiresAtUtc == null)
-        {
-            return new StartPaymentModell
-            {
-                ErrorMessage = Error.TimeExpiredForPendingPayment
+                ErrorMessage = validate
             };
         }
 
@@ -66,7 +53,7 @@ public class PaymentService : IPaymentService
         }
 
         decimal amount;
-        var durationTime = getBooking.EndTime - getBooking.StartTime;
+        var durationTime = getBooking!.EndTime - getBooking.StartTime;
         int duration = (int)durationTime.TotalMinutes;
 
         if(duration == 60)
@@ -183,6 +170,78 @@ public class PaymentService : IPaymentService
             Amount = amount,
             Currency = Currency,
             CheckoutUrl = stripe.CheckoutUrl
+            
         };
+    }
+    
+    private async Task<PaymentStatusResponse> PaymentStatusAsync(string userId, int bookingId, int paymentId)
+    {
+        var getBooking = await _dbContext.Bookings.FirstOrDefaultAsync(x => x.UserId == userId 
+            && x.Id == bookingId);
+
+
+        if(getBooking == null)
+        {
+            return new PaymentStatusResponse
+            {
+                ErrorMessage = Error.BookingNotFound
+            };
+        }
+        
+        var getPayment = await _dbContext.PaymentModell.FirstOrDefaultAsync(x => x.BookingId == getBooking.Id && x.Id == paymentId);
+
+        if(getPayment == null)
+        {
+            return new PaymentStatusResponse
+            {
+                ErrorMessage = Error.CouldNotFindPayment
+            };
+        }
+        if(string.IsNullOrWhiteSpace(getPayment.StripeCheckOutSessionId))
+        {
+            return new PaymentStatusResponse
+            {
+                ErrorMessage = Error.CheckoutSessionIdIsNull
+            };
+        }
+        
+        var getSessionStatus = await _stripePaymentProvider.GetPaymentStatusAsync(getPayment.StripeCheckOutSessionId);
+
+        if(getSessionStatus.ErrorMessage != Error.none)
+        {
+            return new PaymentStatusResponse
+            {
+                ErrorMessage = getSessionStatus.ErrorMessage
+            };
+        }
+        if(getSessionStatus.SessionId != getPayment.StripeCheckOutSessionId)
+        {
+            return new PaymentStatusResponse
+            {
+                ErrorMessage = Error.PaymentSessionMismatch
+            };
+        }
+
+        return getSessionStatus;
+    }
+
+
+    private Error ValidateBooking(Booking? booking)
+    {
+        if(booking == null)
+        {
+            return Error.BookingNotFound;
+        }
+
+        if(booking.Status != BookingStatus.PendingPayment)
+        {
+            return Error.BookingStatusIsNotPendingPayment;
+        };
+
+        if(booking.ExpiresAtUtc <= DateTime.UtcNow || booking.ExpiresAtUtc == null)
+        {
+            return Error.TimeExpiredForPendingPayment;
+        };
+        return Error.none;
     }
 }

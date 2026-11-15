@@ -53,5 +53,11 @@ public enum Error
     StripeSessionStateUnknown,
     CouldNotsaveCheckoutSessionId,
     CouldNotUpdatepaymentStatus,
-    CouldNotRetrievePayment
+    CouldNotRetrievePayment,
+    SessionIdIsEmpty,
+    StripeStatusIsNull,
+    CouldNotFindPayment,
+    CheckoutSessionIdIsNull,
+    PaymentSessionMismatch
+
 }
