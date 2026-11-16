@@ -58,6 +58,10 @@ public enum Error
     StripeStatusIsNull,
     CouldNotFindPayment,
     CheckoutSessionIdIsNull,
-    PaymentSessionMismatch
+    PaymentSessionMismatch,
+    PaymentIsNotPayedYet,
+    InvalidPaymentState,
+    PaymentConfirmationConcurrencyConflict,
+    PaymentConfirmationFailed
 
 }

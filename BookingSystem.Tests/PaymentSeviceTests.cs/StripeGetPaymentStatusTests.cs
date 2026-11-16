@@ -55,7 +55,7 @@ public class StripeGetPaymentStatusTests : IClassFixture<DatabaseFixture>, IAsyn
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(new HttpResponseMessage
         {
-                StatusCode = HttpStatusCode.BadRequest,
+            StatusCode = HttpStatusCode.BadRequest,
             Content = new StringContent(
                 """
                 {
@@ -146,7 +146,7 @@ public class StripeGetPaymentStatusTests : IClassFixture<DatabaseFixture>, IAsyn
 
         var stripeService = new StripePaymentProvider(stripeClient, logger);
 
-        var status = await stripeService.GetPaymentStatusAsync("test");
+        var status = await stripeService.GetPaymentStatusAsync("test"); 
 
         Assert.Equal("cs_test_123", status.SessionId);
     }
