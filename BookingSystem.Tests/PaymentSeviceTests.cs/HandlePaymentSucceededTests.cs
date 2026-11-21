@@ -247,7 +247,7 @@ public class HandlePaymentSucceededTests : IClassFixture<DatabaseFixture>, IAsyn
         var test = await paymentService.HandlePaymentSucceededAsync(newUser.Id, createBooking.ClientBooking.Id, paymentModell.Id);
 
         Assert.False(test.Success);
-        Assert.Equal(Error.PaymentConfirmationConcurrencyConflict, test.ErrorMessage);
+        Assert.Equal(Error.PaymentSuccessConcurrencyConflict, test.ErrorMessage);
     }
     [Fact]
     public async Task HandlePaymentSucceeded_DbUpdateFails()
@@ -289,7 +289,7 @@ public class HandlePaymentSucceededTests : IClassFixture<DatabaseFixture>, IAsyn
 
         var test = await paymentService.HandlePaymentSucceededAsync(newUser.Id, createBooking.ClientBooking.Id, paymentModell.Id);
 
-        Assert.Equal(Error.PaymentConfirmationFailed, test.ErrorMessage);
+        Assert.Equal(Error.PaymentSuccessUpdateFailed, test.ErrorMessage);
     }
 
     private async Task<(HelperUnit helper, StripeClient stripeClient, AppDbContext dbContext, ILogger<PaymentService> paymentLogger, Mock<IPaymentProvider> mock, BookingTimeService bookingTimeService, Mock<IBookingHoldService> bookingHoldService, IDbContextFactory<AppDbContext> dbContextFactory, BookingResult createBooking, PaymentService paymentService, ApplicationUser newUser)> CreateSetupCheckout()

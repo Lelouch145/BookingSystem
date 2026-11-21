@@ -32,7 +32,8 @@ public class ErrorMessageHandler
             // 404 Not Found – Resursen finns inte
             Error.CouldNotFindTheCourtInDataBase or
             Error.BookingNotFound or
-            Error.CouldNotFins
+            Error.CouldNotFins or
+            Error.CouldNotFindPayment
                 => Results.NotFound(error),
 
             // 409 Conflict – Konflikt med befintligt tillstånd
@@ -53,17 +54,25 @@ public class ErrorMessageHandler
             Error.OldSlotsNoLongerBelongToHold or
             Error.UserAlreadyHasAnActiveHold or
             Error.BookingSlotAlreadyOnHold or
-            Error.HoldExpirationTimeUnavailable
+            Error.HoldExpirationTimeUnavailable or
+            Error.InvalidPaymentState or
+            Error.PaymentIsNotPayedYet or
+            Error.PaymentConfirmationConcurrencyConflict
                 => Results.Conflict(error),
 
             // 503 Service Unavailable
-            Error.HoldServiceUnavailable
+            Error.HoldServiceUnavailable or
+            Error.StripeServiceUnavailable
                 => Results.Problem(title: "Hold service unavailable",
                 statusCode: 503),
 
             // 500 Internal Server Error
             Error.CouldNotDeserializeJson or
-            Error.CouldNotGetOldBookingSlots
+            Error.CouldNotGetOldBookingSlots or
+            Error.CheckoutSessionIdIsNull or
+            Error.PaymentSessionMismatch or
+            Error.PaymentConfirmationFailed or
+            Error.StripeStatusIsNull
                 => Results.Problem(title: "Internal server error",
                 statusCode: 500),
             

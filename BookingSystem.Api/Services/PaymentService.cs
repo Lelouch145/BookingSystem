@@ -300,7 +300,7 @@ public class PaymentService : IPaymentService
                 return new PaymentConfirmationResponse
                 {
                     Success = false,
-                    ErrorMessage = Error.PaymentConfirmationConcurrencyConflict
+                    ErrorMessage = Error.PaymentSuccessConcurrencyConflict
                 };
             }
             catch(DbUpdateException x)
@@ -310,7 +310,7 @@ public class PaymentService : IPaymentService
                 return new PaymentConfirmationResponse
                 {
                     Success = false,
-                    ErrorMessage = Error.PaymentConfirmationFailed
+                    ErrorMessage = Error.PaymentSuccessUpdateFailed
                 };
             }
             return new PaymentConfirmationResponse
@@ -323,6 +323,119 @@ public class PaymentService : IPaymentService
             Success = false,
             ErrorMessage = Error.PaymentIsNotPayedYet
         };
+    }
+
+    public async Task<PaymentConfirmationResponse> HandleWebhookSucceededAsync(string sessionId)
+    {
+        var findPayment = await _dbContext.PaymentModell.FirstOrDefaultAsync(x => x.StripeCheckOutSessionId  == sessionId);
+
+        if(findPayment == null)
+        {
+            return new PaymentConfirmationResponse
+            {
+                ErrorMessage = Error.CouldNotFindPayment
+            };
+        }
+
+        var findBooking = await _dbContext.Bookings.FirstOrDefaultAsync(x => x.Id == findPayment.BookingId);
+
+        if(findBooking == null)
+        {
+            return new PaymentConfirmationResponse
+            {
+                ErrorMessage = Error.BookingNotFound
+            };
+        }
+
+        return await HandlePaymentSucceededAsync(findBooking.UserId, findBooking.Id, findPayment.Id);
+    }
+
+    public async Task<PaymentConfirmationResponse> HandlePaymentFailedAsync(string sessionId)
+    {
+        var getPayment = await _dbContext.PaymentModell.FirstOrDefaultAsync(x => x.StripeCheckOutSessionId == sessionId);
+
+        if(getPayment == null)
+        {
+            return new PaymentConfirmationResponse
+            {
+                ErrorMessage = Error.CouldNotFindPayment
+            };
+        }
+
+        var getBooking = await _dbContext.Bookings.FirstOrDefaultAsync(x => x.Id == getPayment.BookingId);
+
+        if(getBooking == null)
+        {
+            return new PaymentConfirmationResponse
+            {
+                ErrorMessage = Error.BookingNotFound
+            };
+        }
+
+        if(getPayment.Status == PaymentStatus.Failed)
+        {
+            return new PaymentConfirmationResponse
+            {
+                Success = true
+            };
+        }
+        if(getPayment.Status != PaymentStatus.Pending || getBooking.Status != BookingStatus.PendingPayment)
+        {
+            return new PaymentConfirmationResponse
+            {
+                Success = false,
+                ErrorMessage = Error.InvalidPaymentState
+            };
+        }
+
+        getPayment.Status = PaymentStatus.Failed;
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+            catch(DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrency conflict while marking payment {paymentId} as failed for booking {BookingId}", 
+                    getPayment.Id, getBooking.Id);
+
+                var paymentSql = await _dbContext.PaymentModell.AsNoTracking().FirstOrDefaultAsync(x => x.StripeCheckOutSessionId == sessionId);
+                if(paymentSql == null)
+                {
+                    return new PaymentConfirmationResponse
+                    {
+                        ErrorMessage = Error.CouldNotFindPayment
+                    };
+                }
+
+                if(paymentSql.Status == PaymentStatus.Failed)
+                {
+                    return new PaymentConfirmationResponse
+                    {
+                        Success = true
+                    };
+                }
+                return new PaymentConfirmationResponse
+                {
+                    Success = false,
+                    ErrorMessage = Error.PaymentFailureConcurrencyConflict 
+                };
+            }
+            catch(DbUpdateException x)
+            {
+                _logger.LogError(x, "Database error while marking payment {PaymentId} as failed for booking {BookingId}",   
+                    getPayment.Id, getBooking.Id);
+                return new PaymentConfirmationResponse
+                {
+                    Success = false,
+                    ErrorMessage = Error.PaymentFailureUpdateFailed
+                };
+            }
+        
+        return new PaymentConfirmationResponse
+        {
+            Success = true
+        };
+
     }
 
 

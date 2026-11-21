@@ -40,7 +40,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
-        var date = new DateOnly(2026, 11, 20);
+        var date = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var timeOnly = new TimeOnly(15, 00);
         var duration = 60;
 
@@ -66,7 +66,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
-        var date = new DateOnly(2026, 11, 20);
+        var date = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var timeOnly = new TimeOnly(15, 00);
         var duration = 60;
         var result1 = await service.CreateHoldAsync(date, timeOnly, duration, newCourt.Id, newUser.Id, CancellationToken.None);
@@ -88,7 +88,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
 
-        var date = new DateOnly(2026, 11, 20);
+        var date = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var timeOnly = new TimeOnly(15, 00);
         var duration = 60;
         var result1 = await service.CreateHoldAsync(date, timeOnly, duration, newCourt.Id, newUser.Id, CancellationToken.None);
@@ -109,8 +109,8 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
         await dbContext.SaveChangesAsync();
 
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
-
-        var date = new DateOnly(2026, 11, 20);
+        
+        var date = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var timeOnly = new TimeOnly(15, 00);
         var duration = 60;
         var result1 = await service.CreateHoldAsync(date, timeOnly, duration, newCourt.Id, newUser.Id, CancellationToken.None);
@@ -157,7 +157,7 @@ public class BookingHoldServiceIntegrationTests : IClassFixture<DatabaseFixture>
         var service = new BookingHoldService(bookingTimeService, connection, dbContext, logger);
         var service2 = new BookingHoldService(bookingTimeService2, connection, dbContext2, logger);
 
-        var date = new DateOnly(2026, 11, 20);
+        var date = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
         var timeOnly = new TimeOnly(15, 00);
         var duration = 60;
         var result1 = service.CreateHoldAsync(date, timeOnly, duration, newCourt.Id, newUser.Id, CancellationToken.None);
