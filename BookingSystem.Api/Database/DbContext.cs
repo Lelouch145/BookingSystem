@@ -53,6 +53,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(x => x.BookingId)
             .IsUnique()
             .HasFilter("[Status] = 0");
+        
+        builder.Entity<PaymentModell>()
+            .Property(x => x.RowVersion)
+            .IsRowVersion();
             
     }
     public DbSet<Court> Courts { get; set; }

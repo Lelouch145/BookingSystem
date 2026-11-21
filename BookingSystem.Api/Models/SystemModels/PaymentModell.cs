@@ -11,5 +11,6 @@ public class PaymentModell
     public string? StripePaymentIntentId {get;set;}
     public string? StripeCheckOutSessionId {get;set;}
     public DateTime CreatedAtUtc {get;set;} = DateTime.UtcNow;
+    public byte[] RowVersion {get;set;} = null!;
 
 }
