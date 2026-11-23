@@ -57,7 +57,9 @@ public class ErrorMessageHandler
             Error.HoldExpirationTimeUnavailable or
             Error.InvalidPaymentState or
             Error.PaymentIsNotPayedYet or
-            Error.PaymentConfirmationConcurrencyConflict
+            Error.PaymentConfirmationConcurrencyConflict or
+            Error.PaymentFailureConcurrencyConflict or
+            Error.PaymentSuccessConcurrencyConflict
                 => Results.Conflict(error),
 
             // 503 Service Unavailable
@@ -72,7 +74,9 @@ public class ErrorMessageHandler
             Error.CheckoutSessionIdIsNull or
             Error.PaymentSessionMismatch or
             Error.PaymentConfirmationFailed or
-            Error.StripeStatusIsNull
+            Error.StripeStatusIsNull or
+            Error.PaymentFailureUpdateFailed or
+            Error.PaymentSuccessUpdateFailed
                 => Results.Problem(title: "Internal server error",
                 statusCode: 500),
             

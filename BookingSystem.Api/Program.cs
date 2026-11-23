@@ -22,6 +22,9 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using BookingSystem.Api.Services.interfaces;
 using BookingSystem.Api.Helper;
 using Stripe;
+using Stripe.V2.Core;
+using System.Reflection.Metadata;
+using BookingSystem.Api.Services.PaymentProviders;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -58,6 +61,11 @@ builder.Services.AddSwaggerGen(options =>
     });
     // Map DateOnly to the OpenApi date format (yyy-MM-dd).
     options.MapType<DateOnly>(() => new OpenApiSchema
+    {
+       Type = "string",
+       Format = "date" 
+    }); 
+    options.MapType<TimeOnly>(() => new OpenApiSchema
     {
        Type = "string",
        Format = "date" 
@@ -100,6 +108,8 @@ builder.Services.AddHostedService<BookingCompletionBackgroundService>();
 builder.Services.AddScoped<BookingTimeService>();
 builder.Services.AddScoped<AvailabilityService>();
 builder.Services.AddScoped<IBookingHoldService, BookingHoldService>();
+builder.Services.AddScoped<IPaymentProvider, StripePaymentProvider>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
 var jwtKey = builder.Configuration["JWT:KEY"]
     ?? throw new InvalidOperationException("JWT key is missing");
 
@@ -173,10 +183,195 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapPost("/api/payments/webhook", (ILogger<Program> logger) =>
+app.MapPost("/api/createHold", async (IBookingHoldService holdService, DateOnly date, TimeOnly time, int duration, int courtId, ClaimsPrincipal user, CancellationToken cancellationToken) =>
 {
-    logger.LogInformation("Webhook received from Stripe");
+    var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
+
+    if(userIdClaim == null)
+    {
+        return Results.Unauthorized();
+    }
+    string userId = userIdClaim.Value;
+
+    var createHold = await holdService.CreateHoldAsync(date, time, duration, courtId, userId, cancellationToken);
+
+    if(createHold.ErrorMessage != Error.none)
+    {
+        return ErrorMessageHandler.MapError(createHold.ErrorMessage);
+    }
+    return Results.Ok(createHold);
+}).RequireAuthorization();
+
+app.MapPost("/api/startPayment", async (IPaymentService service, ClaimsPrincipal user, int bookingId) =>
+{
+    var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
+
+    if(userIdClaim == null)
+    {
+        return Results.Unauthorized();
+    }
+
+    string userId = userIdClaim.Value;
+    var startPayment = await service.StartPaymentAsync(userId, bookingId );
+
+    if(startPayment.ErrorMessage != Error.none)
+    {
+        return ErrorMessageHandler.MapError(startPayment.ErrorMessage);
+    }
+    return Results.Ok(startPayment);
+}).RequireAuthorization();
+app.MapPost("/api/confirmHold", async (BookingService bookingService, ClaimsPrincipal user, CancellationToken cancellationToken) =>
+{
+    var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
+
+    if(userIdClaim == null)
+    {
+        return Results.Unauthorized();
+    }
+    string userId = userIdClaim.Value;
+
+    var confirm = await bookingService.ConfirmBookingHold(userId, cancellationToken);
+
+    if(confirm.ErrorMessage != Error.none)
+    {
+        return ErrorMessageHandler.MapError(confirm.ErrorMessage);
+    }
+
+    return Results.Ok(confirm);
+}).RequireAuthorization();
+
+app.MapPost("/api/releaseHold", async (IBookingHoldService holdService, ClaimsPrincipal user) =>
+{
+    var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
+
+    if(userIdClaim == null)
+    {
+        return Results.Unauthorized();
+    }
+    string userId = userIdClaim.Value;
+
+    var release = await holdService.ReleaseHoldAsync(userId);
+
+    if(release.ErrorMessage != Error.none)
+    {
+        return ErrorMessageHandler.MapError(release.ErrorMessage);
+    }
+    return Results.Ok(release);
+    
+}).RequireAuthorization();
+
+app.MapPost("/api/payments/webhook", async (ILogger<Program> logger, HttpContext context, IConfiguration config, IPaymentService paymentService) =>
+{
+    var body = context.Request.Body;
+
+    using var streamReader = new StreamReader(body);
+
+    var readContent = await streamReader.ReadToEndAsync();
+
+    var header = context.Request.Headers;
+
+    var stripeSignature = header["Stripe-Signature"];
+
+    var whsec = config["Stripe:WebhookSecret"];
+    if (string.IsNullOrWhiteSpace(whsec))
+    {
+        logger.LogError("WebhookSecret is not available");
+        return Results.Problem();
+    }
+    Stripe.Event verify;
+    try
+    {
+        verify = EventUtility.ConstructEvent(readContent, stripeSignature, whsec);
+    }
+    catch(StripeException ex)
+    {
+        logger.LogWarning(ex, "Stripe webhook signature verification failed");
+        return Results.BadRequest();
+    }
+
+    if(verify.Data.Object is Stripe.Checkout.Session session)
+    {
+        switch (verify.Type)
+        {
+            case EventTypes.CheckoutSessionCompleted:
+                if(session.Status == "complete" && session.PaymentStatus == "paid")
+                {
+                    var handlePaymentSuccceded = await paymentService.HandleWebhookSucceededAsync(session.Id);
+                    if(handlePaymentSuccceded.ErrorMessage != Error.none)
+                    {
+                        return ErrorMessageHandler.MapError(handlePaymentSuccceded.ErrorMessage);
+                    }
+                    return Results.Ok(handlePaymentSuccceded);
+                }
+
+                
+                logger.LogInformation(
+                    "Unexpected Stripe status for async payment succeeded event. SessionId: {SessionId}, SessionStatus: {SessionStatus}, PaymentStatus: {PaymentStatus}",
+                    session.Id,
+                    session.Status,
+                    session.PaymentStatus
+                );
+                break;
+            case EventTypes.CheckoutSessionAsyncPaymentSucceeded:
+                if(session.Status == "complete" && session.PaymentStatus == "paid")
+                {
+                    var handlePaymentSuccceded = await paymentService.HandleWebhookSucceededAsync(session.Id);
+
+                    if(handlePaymentSuccceded.ErrorMessage != Error.none && handlePaymentSuccceded.Success != true)
+                    {
+                        return ErrorMessageHandler.MapError(handlePaymentSuccceded.ErrorMessage);
+                    }
+                    return Results.Ok(handlePaymentSuccceded);
+                }
+                logger.LogWarning(
+                    "Stripe Checkout Session {SessionId} completed but payment is not yet paid. SessionStatus: {SessionStatus}, PaymentStatus: {PaymentStatus}",
+                    session.Id,
+                    session.Status,
+                    session.PaymentStatus
+                );
+                return Results.Problem();
+            case EventTypes.CheckoutSessionAsyncPaymentFailed:
+                if(session.PaymentStatus == "unpaid")
+                {
+                    var handlePaymentFailed = await paymentService.HandlePaymentFailedAsync(session.Id);
+
+                    if(handlePaymentFailed.ErrorMessage != Error.none)
+                    {
+                        return ErrorMessageHandler.MapError(handlePaymentFailed.ErrorMessage);
+                    }
+                    return Results.Ok(handlePaymentFailed);
+                }
+                logger.LogWarning("stripe async payment failed for checkout session {SessionId}. SessionStatus: {SessionStatus}, PaymentStatus: {PaymentStatus}",
+                    session.Id, session.Status, session.PaymentStatus);
+                return Results.Problem();
+            
+            default:
+            
+                logger.LogInformation("Unhandled stripe event type :{EventType}", verify.Type);
+                break;
+
+        }
+        logger.LogInformation("Session ID: {SessionId}", session.Id);
+    }
+    else
+    {
+        if(verify.Type == EventTypes.CheckoutSessionCompleted ||
+        verify.Type == EventTypes.CheckoutSessionAsyncPaymentSucceeded ||
+        verify.Type == EventTypes.CheckoutSessionAsyncPaymentFailed)
+        {
+            logger.LogError("Stripe event {EventType} with ID {EventId} does not contain a valid checkout session",
+                verify.Type, verify.Id);
+            return Results.Problem();
+        }
+        logger.LogInformation("Ignoring unhandled Stripe event type {EventType}", verify.Type);
+        
+    }
+    
+
+    logger.LogInformation("Received Stripe webhook event {EventType} with ID {EventId}", verify.Type, verify.Id);
     return Results.Ok();
+    
+
 });
 
 app.MapPost("Courts/{courtName}/CreateCourt", async (CourtService court, string courtName, string description, CancellationToken cancellationToken) =>
@@ -269,25 +464,6 @@ app.MapPost("Login", async (LoginService services, LoginRequest request) =>
         return Results.BadRequest(result);
     }
 });
-
-app.MapPost("/CreateHold", async (IBookingHoldService holdService, DateOnly date, TimeOnly bookingTIme, int duration, int courtId, ClaimsPrincipal user, CancellationToken cancellationToken) =>
-{
-    var userIdClaim = user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
-
-    if(userIdClaim == null)
-    {
-        return Results.Unauthorized();
-    }
-
-    string userId = userIdClaim.Value;
-
-    var createHold = await holdService.CreateHoldAsync(date, bookingTIme, duration, courtId, userId, cancellationToken);
-    if(createHold.ErrorMessage != Error.none)
-    {
-        return ErrorMessageHandler.MapError(createHold.ErrorMessage);
-    }
-    return Results.Ok(createHold);
-}).RequireAuthorization();
 app.MapPost("Booking{courtId}/createBooking", async (BookingService booking, int courtId, DateTime startTime, int duration, ClaimsPrincipal user, CancellationToken cancellationToken) =>
 {
 

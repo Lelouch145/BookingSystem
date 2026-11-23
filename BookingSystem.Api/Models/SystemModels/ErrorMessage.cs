@@ -62,6 +62,11 @@ public enum Error
     PaymentIsNotPayedYet,
     InvalidPaymentState,
     PaymentConfirmationConcurrencyConflict,
-    PaymentConfirmationFailed
+    PaymentConfirmationFailed,
+
+    PaymentFailureConcurrencyConflict,
+    PaymentFailureUpdateFailed,
+    PaymentSuccessConcurrencyConflict,
+    PaymentSuccessUpdateFailed
 
 }

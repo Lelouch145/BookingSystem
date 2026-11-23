@@ -2,7 +2,7 @@
 
 An ASP.NET Core API for booking padel courts, built to explore backend development beyond basic CRUD: database integrity, concurrent requests, temporary reservations and coordination between SQL Server and Redis.
 
-> **Status: actively under development.** Core booking logic and Redis hold services are implemented, with automated tests in the repository. Payment integration is the next development phase. Stripe setup has started; a complete payment flow is not implemented.
+> **Status: actively under development.** The API exposes Redis hold operations, Stripe Checkout and signed webhooks for successful and failed payments. Payment expiration and recovery are still in development.
 
 ## Why I am building this
 
@@ -23,11 +23,17 @@ The project is a learning portfolio with ongoing improvements, rather than a fin
 - **Caching:** booking and availability services contain Redis cache reads, writes and invalidation, including handling of Redis connection and timeout errors. See the configuration limitation below.
 - **Background processing:** a hosted service updates completed bookings.
 
-### API surface versus service implementation
+### Hold and payment endpoints
 
-The API currently exposes registration, login, court management, availability, booking management and `POST /CreateHold`. Swagger UI describes the exposed routes in the Development environment.
+Swagger UI lists these routes alongside the account, court, availability and booking endpoints in the Development environment.
 
-Hold switching, release, validation and `ConfirmBookingHold` are implemented at the service layer and exercised by tests, but do not currently have dedicated API endpoints. The direct booking endpoint creates a confirmed booking without payment. A complete hold-to-payment-to-confirmation API workflow remains to be integrated.
+| Endpoint | Behavior |
+| --- | --- |
+| `POST /api/createHold` | Reserves the requested slots temporarily in Redis. |
+| `POST /api/confirmHold` | Persists the held slots and creates a booking in `PendingPayment` with a 10-minute payment deadline. |
+| `POST /api/startPayment` | Starts a Stripe Checkout session for the caller's pending booking. |
+| `POST /api/payments/webhook` | Verifies the Stripe signature and handles `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.async_payment_failed`. A verified successful payment marks the payment `Paid` and the booking `Confirmed`. An asynchronous failure marks the payment `Failed`. |
+| `POST /api/releaseHold` | Releases the caller's active Redis hold. |
 
 ## Technical approach
 
@@ -46,7 +52,7 @@ Redis stores temporary holds and cached data. Lua scripts coordinate hold keys w
 | API exploration | Swagger / OpenAPI via Swashbuckle |
 | Tests | xUnit, Moq, Respawn, coverlet |
 | Local infrastructure | Docker Compose: SQL Server 2022 and Redis 8 |
-| Payment preparation | Stripe.net SDK and a webhook placeholder |
+| Payments | Stripe.net SDK, Stripe Checkout, signed webhooks |
 
 ## Run locally
 
@@ -81,7 +87,7 @@ dotnet user-secrets set 'Admin:Password' '<strong-password-meeting-Identity-rule
 dotnet user-secrets set 'Stripe:SecretKey' '<your-stripe-test-secret-key>' --project BookingSystem.Api
 ```
 
-Startup currently requires `Stripe:SecretKey`, even though payment processing is unfinished. Keep credentials out of committed configuration files.
+Startup requires `Stripe:SecretKey`. To test webhook delivery locally, set `Stripe:WebhookSecret` to the signing secret printed by `stripe listen`. Keep credentials out of committed configuration files.
 
 ### 3. Apply migrations and start the API
 
@@ -98,7 +104,7 @@ Open [Swagger UI](https://localhost:7030/swagger). Log in with the configured ad
 
 In `Program.cs`, the `AddStackExchangeRedisCache` registration currently assigns the literal string `"redisConnectionString"` to `options.Configuration`, instead of the configured variable `redisConnectionString`. This can break operations using `IDistributedCache`; the separate connection multiplexer used by holds reads the configured connection string correctly. Correcting that registration is a pending code fix.
 
-These instructions are derived from the source; a fresh local startup has not been verified as part of this documentation change.
+I verified the payment flow end to end by running the API locally, completing a Stripe Checkout payment in test mode, and confirming that SQL Server recorded the payment as `Paid` and the booking as `Confirmed`.
 
 ## Run tests
 
@@ -123,7 +129,7 @@ Keep SQL Server and Redis running while executing the suite. Test presence does 
 - Coordinating temporary reservations and durable bookings when systems fail independently.
 - Testing concurrent operations and failures before, during and after a database commit.
 - Managing authentication, authorization, dependency injection and local configuration.
-- Separating payment infrastructure setup from a complete business workflow.
+- Integrating external payment providers, handling signed webhooks, and coordinating payment states with SQL Server.
 
 ## Development plan
 
@@ -131,24 +137,19 @@ Keep SQL Server and Redis running while executing the suite. Test presence does 
 | --- | --- | --- |
 | Implemented | Core booking foundation | Court management, accounts, JWT, availability, booking creation, cancellation and rescheduling |
 | Implemented | Database integrity | 30-minute slot constraints, unique indexes, transactions and booking row versions |
-| Implemented | Hold service and tests | Redis/Lua hold lifecycle, finalization and tests for concurrency and failure scenarios; API exposure is partial |
-| In progress | Payment groundwork | Payment models and migrations, Stripe client configuration and webhook connectivity placeholder |
-| Planned — next phase | Payment integration | Define `IPaymentProvider`, implement `StripePaymentProvider` and `PaymentService`, and connect payments to booking state |
-| Planned | Payment reliability | Verify webhook signatures, process events idempotently, and test successful, failed and repeated payment events |
-| Planned | Complete booking workflow | Expose the required hold operations and connect hold confirmation to the payment flow |
+| Implemented | Temporary holds | Redis/Lua hold lifecycle, API endpoints for creation, confirmation and release, and tests for concurrency and failure scenarios |
+| Implemented | Stripe Checkout and webhooks | Hold confirmation creates a pending booking, Stripe Checkout starts payment, and signed webhook events are processed for successful and asynchronously failed payments |
+| In progress | Payment lifecycle | Handle expired Checkout sessions and clean up expired pending bookings |
+| Planned | Payment recovery | Add refunds and reconcile uncertain outcomes between Stripe and SQL Server |
 | Planned | Local-run and quality improvements | Fix Redis cache registration, verify clean setup instructions, and extend tests as the payment flow develops |
-
-The current `POST /api/payments/webhook` endpoint only logs receipt and returns HTTP 200. It does not validate signatures, process Stripe events or update bookings. Payment models and an installed SDK do not yet constitute working payment integration.
 
 Milestones are tracked by completed behavior and tests; no fixed V1 release date is promised.
 
 ## Further development plans
 
-The roadmap below extends the milestones above. These are planned improvements, with payment integration remaining the next development step.
-
 ### Phase 1 — Complete the booking workflow and strengthen the API
 
-- **Payment flow:** connect holds, payment status and booking confirmation, including handling failed or interrupted payments and repeated webhook events.
+- **Payment flow:** handle expiration and interrupted payments, and extend tests for repeated webhook delivery.
 - **Notifications and booking events:** introduce events such as `BookingCreated`, `BookingCancelled` and `BookingRescheduled`, with asynchronous booking confirmations and cancellation notifications.
 - **Transactional outbox:** save booking changes and their notification events in the same SQL transaction. Process pending events through a background service, with retries and idempotent handling so delivery can resume after an application failure.
 - **Rate limiting and resilience:** limit requests per client and concurrent requests, handle timeouts and overload, and improve error handling when dependencies fail.
